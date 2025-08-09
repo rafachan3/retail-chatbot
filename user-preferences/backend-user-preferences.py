@@ -41,6 +41,79 @@ from enum import Enum, auto
 from typing import Any, Dict, List, Optional
 import logging
 from pathlib import Path
+import re
+import os
+
+# Require NLTK stopwords; download corpus if missing (per NLTK docs)
+try:
+    import nltk  # type: ignore
+    from nltk.corpus import stopwords as _nltk_stopwords  # type: ignore
+    try:
+        _NLTK_STOPWORDS = set(_nltk_stopwords.words("english"))
+    except LookupError:
+        nltk.download("stopwords", quiet=True)
+        _NLTK_STOPWORDS = set(_nltk_stopwords.words("english"))
+except Exception as e:
+    raise RuntimeError(
+        "NLTK and its 'stopwords' corpus are required for description cleaning. "
+        "Please install nltk and ensure the stopwords corpus is available."
+    ) from e
+
+# Fashion domain keep list to preserve context words
+_DOMAIN_KEEP = {
+    # Colors
+    "black","white","gray","grey","silver","charcoal","navy","blue","light","dark","midnight","indigo","cyan","teal","aqua","turquoise",
+    "green","olive","khaki","lime","forest","emerald","mint","brown","tan","beige","camel","chocolate","mocha","sand","taupe",
+    "red","maroon","burgundy","wine","crimson","pink","blush","rose","magenta","fuchsia","purple","violet","lavender","lilac",
+    "orange","rust","terracotta","coral","peach","apricot","yellow","mustard","gold","golden","cream","offwhite","off-white",
+    # Materials
+    "cotton","denim","leather","faux","suede","wool","cashmere","merino","linen","silk","satin","viscose","rayon","polyester","nylon","spandex","elastane","lyocell","tencel","modal","acrylic",
+    # Patterns & finishes
+    "solid","plain","striped","stripes","pinstripe","checks","checked","plaid","gingham","houndstooth","herringbone","jacquard","floral","paisley","abstract","geometric","animal","leopard","zebra","camouflage","camo",
+    "ribbed","waffle","cable","quilted","matte","glossy","shiny","metallic","distressed","washed","acid","stonewashed","raw","selvedge","seersucker",
+    # Fits & silhouettes
+    "slim","skinny","regular","relaxed","loose","oversized","tapered","straight","bootcut","flare","flared","wide","baggy","cropped","fitted","boxy","athletic","tailored","high","mid","low","rise","drop","waist",
+    # Garment parts & construction
+    "crew","vneck","v-neck","scoop","boatneck","turtleneck","mockneck","henley","button","buttoned","buttons","zip","zipper","halfzip","half-zip","fullzip","full-zip",
+    "collar","spread","point","buttondown","button-down","band","mandarin","shawl","lapel","notch","peak","double","single","breasted",
+    "sleeve","shortsleeve","short-sleeve","longsleeve","long-sleeve","sleeveless","cap","raglan","dolman","cuff","cuffed",
+    "hem","rawhem","raw-hem","curvedhem","curved-hem","splithem","split-hem","drawstring","elastic","elasticated","belt","belted","pleat","pleated","dart","yoke",
+    # Item types
+    "tshirt","t-shirt","tee","shirt","oxford","polo","blouse","top","tank","camisole","sweater","jumper","hoodie","sweatshirt","cardigan","jacket","blazer","coat","trench","puffer","parka","gilet","vest",
+    "jeans","chinos","trousers","pants","shorts","skirt","dress","jumpsuit","playsuit","suit","suiting","sweatpants","joggers","leggings","tights",
+    # Footwear & accessories
+    "sneakers","trainers","running","shoes","boots","chelsea","derby","oxford","loafer","sandals","heels","flats","mules","clogs",
+    "bag","backpack","tote","crossbody","cross-body","belt","scarf","beanie","cap","hat","gloves","socks","tie","bowtie","bow-tie",
+    # Style/occasion cues
+    "casual","smart","formal","business","businesscasual","streetwear","sporty","athleisure","minimal","classic","vintage","retro","edgy","preppy","boho","bohemian","elegant",
+    "wedding","party","evening","office","work","weekend","holiday","vacation","travel","outdoor","hiking","gym","training",
+    # Lengths & coverage
+    "mini","midi","maxi","ankle","fulllength","full-length","knee","above","below","threequarter","three-quarter","7/8","crop","cropped",
+    # Washes & treatments
+    "lightwash","light-wash","midwash","mid-wash","darkwash","dark-wash","vintagewash","vintage-wash","rinse","rawdenim","fade","faded",
+    # Other descriptive terms
+    "breathable","stretch","stretchy","soft","cozy","warm","lightweight","heavyweight","midweight","waterproof","water-resistant","windproof","insulated","lined","unlined",
+}
+
+_STOPWORDS = _NLTK_STOPWORDS - _DOMAIN_KEEP
+
+# Subset of common fashion item-type tokens to help validate comma separation
+# (used to detect multiple items accidentally placed in one comma chunk)
+ITEM_TYPE_TOKENS = {
+    # Tops
+    "tshirt", "t-shirt", "tee", "shirt", "oxford", "polo", "blouse", "top", "tank",
+    "sweater", "jumper", "hoodie", "sweatshirt", "cardigan", "jacket", "blazer", "coat",
+    "trench", "puffer", "parka", "gilet", "vest",
+    # Bottoms
+    "jeans", "chinos", "trousers", "pants", "shorts", "skirt", "dress", "jumpsuit", "playsuit",
+    "suit", "sweatpants", "joggers", "leggings", "tights",
+    # Footwear
+    "sneakers", "trainers", "shoes", "boots", "chelsea", "derby", "oxford", "loafer", "sandals",
+    "heels", "flats", "mules", "clogs",
+    # Accessories
+    "bag", "backpack", "tote", "crossbody", "belt", "scarf", "beanie", "cap", "hat",
+    "gloves", "socks", "tie", "bowtie",
+}
 
 
 class Stage(Enum):
@@ -51,15 +124,15 @@ class Stage(Enum):
     MODE_STYLE = auto()  # style / mood for the selected mode
 
     # Outfit path
-    OUTFIT_ITEMS = auto()
+    OUTFIT_ITEMS = auto() # what is the customer looking for
     OUTFIT_OCCASION = auto()  # specific vs daily
     OUTFIT_ITEM_DESC = auto()  # loop over items
 
     # Single item path
-    ITEM_TYPE = auto()
-    ITEM_MATCH_WARDROBE = auto()
+    ITEM_TYPE = auto()  # type of item (e.g. shirt, pants)
+    ITEM_MATCH_WARDROBE = auto()  # whether to match existing wardrobe
     ITEM_WARDROBE_ITEMS = auto()  # ask which wardrobe items to match
-    ITEM_DESC = auto()
+    ITEM_DESC = auto()  # describe the item
 
     # Common tail
     BODY_HEIGHT = auto()
@@ -93,6 +166,13 @@ class SessionData:
     descriptions: Dict[str, Any] = field(default_factory=dict)
     body: Dict[str, Any] = field(default_factory=dict)
 
+    # Clean/normalized variants for later retrieval (kept separate to avoid UI changes)
+    style_clean: Optional[str] = None
+    outfit_items_list_clean: List[str] = field(default_factory=list)
+    single_item_type_clean: Optional[str] = None
+    wardrobe_items_to_match_clean: Optional[str] = None
+    descriptions_clean: Dict[str, str] = field(default_factory=dict)
+
 
 class Session:
     """Stateful conversation manager.
@@ -106,6 +186,13 @@ class Session:
         self.stage: Stage = Stage.START
         self.data = SessionData()
         self.logger = _get_logger()
+        # Debug toggle: include cleaned/normalized fields in snapshot/logs
+        # Enable by setting RETAIL_CHATBOT_DEBUG_CLEAN=1
+        self.debug_clean: bool = bool(int(os.getenv("RETAIL_CHATBOT_DEBUG_CLEAN", "0")))
+
+    def enable_clean_debug(self, enabled: bool = True) -> None:
+        """Enable/disable inclusion of cleaned fields in the snapshot for debugging."""
+        self.debug_clean = enabled
 
     # ---------------------------------------------------------------------
     # Public API
@@ -118,6 +205,7 @@ class Session:
         """
 
         if user_input is not None:
+            # Trim leading/trailing whitespace; stage handlers may further normalize
             user_input = user_input.strip()
 
         # Log inbound
@@ -239,17 +327,21 @@ class Session:
         if not user_input:
             return self._payload(["Please describe a style or mood."], expect="text")
 
+        # Reject numeric-only input; require at least one alphabetic character
+        if not re.search(r"[A-Za-z]", user_input or ""):
+            return self._payload(["Please describe a style or mood with words (not just numbers)."], expect="text")
+
+        # Store raw + cleaned variants
         self.data.style = user_input
+        self.data.style_clean = self._normalize_text(user_input)
 
         if self.data.mode == "outfit":
             self.stage = Stage.OUTFIT_ITEMS
             return self._payload(
                 [
-                    (
-                        f"Got it! You're looking for a {self.data.style} outfit. "
-                        "What clothing items do you want to include? "
-                        "(e.g. 'jeans, white t-shirt, blazer')"
-                    )
+                    f"Got it! You're looking for a {self.data.style} outfit.",
+                    "What clothing items do you want to include?",
+                    "Please separate items with commas (e.g., 'jeans, t-shirt, blazer').",
                 ],
                 expect="text",
             )
@@ -257,10 +349,8 @@ class Session:
             self.stage = Stage.ITEM_TYPE
             return self._payload(
                 [
-                    (
-                        f"Got it! You're looking for a {self.data.style} item. "
-                        "What type of item is it? (e.g. 'jacket', 'sneakers')"
-                    )
+                    f"Got it! You're looking for a {self.data.style} item.",
+                    "What type of item is it? (e.g. 'jacket', 'sneakers')",
                 ],
                 expect="text",
             )
@@ -283,21 +373,85 @@ class Session:
                 ["List the clothing items separated by commas."], expect="text"
             )
 
-        # Normalize and store item list
-        items = [x.strip() for x in user_input.split(",") if x.strip()]
-        if not items:
+        # Single-item fallback: if there's no comma and it looks like one item,
+        # switch to the single-item flow (ITEM_MATCH_WARDROBE).
+        if "," not in user_input:
+            chunk = user_input.strip()
+            # If conjunctions present, it's likely multiple items -> ask for commas
+            if re.search(r"\b(and|&|plus)\b", chunk, flags=re.IGNORECASE):
+                return self._payload(
+                    [
+                        "Please separate items with commas, e.g., 'jeans, t-shirt, blazer'."
+                    ],
+                    expect="text",
+                )
+            tokens = [t for t in re.split(r"[^0-9a-zA-Z\-]+", chunk.lower()) if t]
+            matches = sum(1 for t in tokens if t in ITEM_TYPE_TOKENS)
+            if matches == 1:
+                # Looks like a single item -> pivot to single-item flow
+                self.data.mode = "item"
+                self.data.single_item_type = chunk
+                self.data.single_item_type_clean = self._normalize_text(chunk)
+                self.stage = Stage.ITEM_MATCH_WARDROBE
+                return self._payload(
+                    [
+                        "Looks like you're after a single item.",
+                        f"Item: {chunk}",
+                        "Do you want it to match your current wardrobe? (yes/no)",
+                    ],
+                    expect="choice",
+                    choices=["yes", "no"],
+                )
+            # If we detected multiple items or couldn't recognize, ask for commas
+            return self._payload(
+                [
+                    "Please separate items with commas, e.g., 'jeans, t-shirt, blazer'.",
+                    "If you're looking for one item, you can just type it (e.g., 'blazer').",
+                ],
+                expect="text",
+            )
+
+        # Extra validation: ensure each comma-chunk represents a single item
+        # and not multiple items mashed without commas (e.g., "t-shirt hat", "jeans and hoodie").
+        raw_chunks = [chunk.strip() for chunk in user_input.split(",") if chunk.strip()]
+        suspicious = False
+        for chunk in raw_chunks:
+            # If conjunctions appear, it's likely multiple items in one chunk
+            if re.search(r"\b(and|&|plus)\b", chunk, flags=re.IGNORECASE):
+                suspicious = True
+                break
+            # Count known item-type tokens in the chunk
+            tokens = [t for t in re.split(r"[^0-9a-zA-Z\-]+", chunk.lower()) if t]
+            matches = sum(1 for t in tokens if t in ITEM_TYPE_TOKENS)
+            if matches >= 2:
+                suspicious = True
+                break
+        if suspicious:
+            return self._payload(
+                [
+                    "It looks like multiple items are in the same part. Please put each item in its own comma-separated entry.",
+                    "Example: 'jeans, t-shirt, blazer' (not 't-shirt hat').",
+                ],
+                expect="text",
+            )
+
+        # Parse list and create cleaned variants
+        items_display = raw_chunks
+        items_clean = [self._normalize_text(x) for x in items_display]
+        if not items_display:
             return self._payload([
                 "I couldn't parse any items. Try something like: jeans, white t-shirt, blazer"
             ])
         self.data.outfit_items_raw = user_input
-        self.data.outfit_items_list = items
-        self.data.outfit_items_pending = items.copy()
+        self.data.outfit_items_list = items_display
+        self.data.outfit_items_list_clean = items_clean
+        self.data.outfit_items_pending = items_display.copy()
 
         self.stage = Stage.OUTFIT_OCCASION
         return self._payload(
             [
                 (
-                    f"Perfect! You're looking for an outfit with: {', '.join(items)}. "
+                    f"Perfect! You're looking for an outfit with: {', '.join(self.data.outfit_items_list)}. "
                     "Is it for a specific occasion or daily wear?"
                 )
             ],
@@ -352,9 +506,10 @@ class Session:
                 [f"Please describe the {self.data.current_item}."], expect="text"
             )
 
-        # Store description for the current item
+        # Store description for the current item (raw + cleaned)
         assert self.data.current_item is not None
         self.data.descriptions[self.data.current_item] = user_input
+        self.data.descriptions_clean[self.data.current_item] = self._clean_description(user_input)
 
         if self.data.outfit_items_pending:
             # Move to next item in the loop
@@ -385,6 +540,7 @@ class Session:
             return self._payload(["What type of item is it?"], expect="text")
 
         self.data.single_item_type = user_input
+        self.data.single_item_type_clean = self._normalize_text(user_input)
         self.stage = Stage.ITEM_MATCH_WARDROBE
         return self._payload(
             ["Do you want it to match your current wardrobe? (yes/no)"],
@@ -453,6 +609,7 @@ class Session:
             )
 
         self.data.wardrobe_items_to_match = user_input
+        self.data.wardrobe_items_to_match_clean = self._normalize_text(user_input)
         self.stage = Stage.ITEM_DESC
         return self._payload(
             [
@@ -480,6 +637,7 @@ class Session:
 
         assert self.data.single_item_type is not None
         self.data.descriptions[self.data.single_item_type] = user_input
+        self.data.descriptions_clean[self.data.single_item_type] = self._clean_description(user_input)
         self.stage = Stage.BODY_HEIGHT
         return self._payload(["Height (in cm)?"], expect="text")
 
@@ -629,7 +787,19 @@ class Session:
         # Add user summary if session is complete
         if self.stage == Stage.COMPLETE:
             snapshot["user_summary"] = self._generate_user_summary()
-            
+        
+        # Include cleaned/normalized data for debugging:
+        # - Always at COMPLETE
+        # - Or at any stage if debug_clean is enabled (env var or method)
+        if self.stage == Stage.COMPLETE or self.debug_clean:
+            snapshot["clean_debug"] = {
+                "style_clean": d.style_clean,
+                "outfit_items_list_clean": d.outfit_items_list_clean,
+                "single_item_type_clean": d.single_item_type_clean,
+                "wardrobe_items_to_match_clean": d.wardrobe_items_to_match_clean,
+                "descriptions_clean": d.descriptions_clean,
+            }
+
         return snapshot
 
     @staticmethod
@@ -641,6 +811,24 @@ class Session:
             return True
         except ValueError:
             return False
+
+    # ------------------------------
+    # Normalization & cleaning helpers
+    # ------------------------------
+    @staticmethod
+    def _normalize_text(value: str) -> str:
+        v = value.strip().lower()
+        return re.sub(r"\s+", " ", v)
+
+    @staticmethod
+    def _tokenize(text: str) -> List[str]:
+        # keep alphanumeric tokens; split on non-alphanumerics
+        return [t for t in re.split(r"[^0-9a-zA-Z]+", text.lower()) if t]
+
+    def _clean_description(self, text: str) -> str:
+        tokens = self._tokenize(text)
+        filtered = [t for t in tokens if t not in _STOPWORDS]
+        return " ".join(filtered)
 
 
 # Convenience factory (optional)
