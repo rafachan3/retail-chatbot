@@ -20,7 +20,9 @@ How stages map to the decision tree
 START -> ask outfit vs item
   ├─ outfit -> ask style -> ask items -> ask occasion -> per-item descriptions loop
   │            -> height -> weight -> age -> COMPLETE
-  └─ item   -> ask style -> ask item type -> match wardrobe? -> item description
+  └─ item   -> ask style -> ask item type -> match wardrobe? 
+               ├─ yes -> ask wardrobe items -> item description
+               └─ no  -> item description
                -> height -> weight -> age -> COMPLETE
 
 Integration contract (GUI)
@@ -56,6 +58,7 @@ class Stage(Enum):
     # Single item path
     ITEM_TYPE = auto()
     ITEM_MATCH_WARDROBE = auto()
+    ITEM_WARDROBE_ITEMS = auto()  # ask which wardrobe items to match
     ITEM_DESC = auto()
 
     # Common tail
@@ -84,6 +87,7 @@ class SessionData:
     # Item-specific
     single_item_type: Optional[str] = None
     match_existing: Optional[bool] = None
+    wardrobe_items_to_match: Optional[str] = None  # items to match the new item with
 
     # Details and body info
     descriptions: Dict[str, Any] = field(default_factory=dict)
@@ -146,6 +150,8 @@ class Session:
             return self._handle_item_type(user_input)
         if self.stage == Stage.ITEM_MATCH_WARDROBE:
             return self._handle_item_match(user_input)
+        if self.stage == Stage.ITEM_WARDROBE_ITEMS:
+            return self._handle_item_wardrobe_items(user_input)
         if self.stage == Stage.ITEM_DESC:
             return self._handle_item_desc(user_input)
 
@@ -164,6 +170,13 @@ class Session:
     # Stage handlers
     # ---------------------------------------------------------------------
     def _enter_mode_selection(self) -> Dict[str, Any]:
+        """Initialize the conversation and prompt user to choose between outfit or item mode.
+        
+        Sets the stage to MODE_SELECTION and presents the initial greeting with choice options.
+        
+        Returns:
+            Dict containing the greeting message and choice options for outfit vs item.
+        """
         self.stage = Stage.MODE_SELECTION
         return self._payload(
             [
@@ -175,6 +188,17 @@ class Session:
         )
 
     def _handle_mode_selection(self, user_input: Optional[str]) -> Dict[str, Any]:
+        """Handle user's choice between outfit and item modes.
+        
+        Validates the user input and transitions to the style selection stage.
+        Re-prompts if input is invalid.
+        
+        Args:
+            user_input: User's choice, should be "outfit" or "item".
+            
+        Returns:
+            Dict containing next stage prompt or error message.
+        """
         if not user_input or user_input.lower() not in ("outfit", "item"):
             # Re-ask with explicit choices
             return self._payload(
@@ -201,6 +225,17 @@ class Session:
             )
 
     def _handle_mode_style(self, user_input: Optional[str]) -> Dict[str, Any]:
+        """Handle user's style or mood input and route to appropriate next stage.
+        
+        Stores the style preference and transitions to either outfit items collection
+        or single item type collection based on the previously selected mode.
+        
+        Args:
+            user_input: User's description of desired style or mood.
+            
+        Returns:
+            Dict containing confirmation message and next stage prompt.
+        """
         if not user_input:
             return self._payload(["Please describe a style or mood."], expect="text")
 
@@ -232,6 +267,17 @@ class Session:
 
     # ---- Outfit path -----------------------------------------------------
     def _handle_outfit_items(self, user_input: Optional[str]) -> Dict[str, Any]:
+        """Handle user's input for outfit items and parse them into a list.
+        
+        Parses comma-separated clothing items, validates the input, and stores
+        the items for further processing. Transitions to occasion selection.
+        
+        Args:
+            user_input: Comma-separated list of clothing items.
+            
+        Returns:
+            Dict containing confirmation of items and occasion selection prompt.
+        """
         if not user_input:
             return self._payload(
                 ["List the clothing items separated by commas."], expect="text"
@@ -260,6 +306,17 @@ class Session:
         )
 
     def _handle_outfit_occasion(self, user_input: Optional[str]) -> Dict[str, Any]:
+        """Handle user's choice for outfit occasion type.
+        
+        Validates the occasion selection (specific vs daily) and transitions to
+        the per-item description collection phase.
+        
+        Args:
+            user_input: User's choice, should be "specific" or "daily".
+            
+        Returns:
+            Dict containing prompt for the first item description.
+        """
         if not user_input or user_input.lower() not in ("specific", "daily"):
             return self._payload(
                 ["Choose 'specific' or 'daily'."],
@@ -278,6 +335,18 @@ class Session:
         )
 
     def _handle_outfit_item_desc(self, user_input: Optional[str]) -> Dict[str, Any]:
+        """Handle description input for individual outfit items.
+        
+        Processes the description for the current item and manages the loop
+        through all outfit items. Once all items are described, transitions
+        to body measurements collection.
+        
+        Args:
+            user_input: User's description of the current item (color, fit, etc.).
+            
+        Returns:
+            Dict containing next item prompt or body height collection prompt.
+        """
         if not user_input:
             return self._payload(
                 [f"Please describe the {self.data.current_item}."], expect="text"
@@ -301,6 +370,17 @@ class Session:
 
     # ---- Single item path -----------------------------------------------
     def _handle_item_type(self, user_input: Optional[str]) -> Dict[str, Any]:
+        """Handle user input for the type of single item they're looking for.
+        
+        Stores the item type and transitions to asking whether they want it
+        to match their existing wardrobe.
+        
+        Args:
+            user_input: Description of the item type (e.g., 'jacket', 'sneakers').
+            
+        Returns:
+            Dict containing wardrobe matching question with yes/no choices.
+        """
         if not user_input:
             return self._payload(["What type of item is it?"], expect="text")
 
@@ -313,6 +393,16 @@ class Session:
         )
 
     def _handle_item_match(self, user_input: Optional[str]) -> Dict[str, Any]:
+        """Handle user's choice on whether item should match existing wardrobe.
+        
+        Validates the yes/no response and transitions to item description collection.
+        
+        Args:
+            user_input: User's choice, should be "yes" or "no".
+            
+        Returns:
+            Dict containing item description prompt or validation error.
+        """
         if not user_input or user_input.lower() not in ("yes", "no"):
             return self._payload(
                 ["Please answer 'yes' or 'no'."],
@@ -321,15 +411,68 @@ class Session:
             )
 
         self.data.match_existing = user_input.lower() == "yes"
+        
+        if self.data.match_existing:
+            # If they want to match existing wardrobe, ask which items
+            self.stage = Stage.ITEM_WARDROBE_ITEMS
+            return self._payload(
+                [
+                    f"Which items in your wardrobe would you like to match the {self.data.single_item_type} with? "
+                    "(e.g. 'dark jeans, white shirt, brown belt')"
+                ],
+                expect="text",
+            )
+        else:
+            # If no matching needed, go straight to item description
+            self.stage = Stage.ITEM_DESC
+            return self._payload(
+                [
+                    f"Describe the {self.data.single_item_type} (color, material, fit, etc.).",
+                ],
+                expect="text",
+            )
+
+    def _handle_item_wardrobe_items(self, user_input: Optional[str]) -> Dict[str, Any]:
+        """Handle user input for wardrobe items to match the new item with.
+        
+        Stores the list of wardrobe items that the user wants to coordinate with
+        their new item and transitions to item description collection.
+        
+        Args:
+            user_input: User's description of wardrobe items to match with.
+            
+        Returns:
+            Dict containing item description prompt or validation error.
+        """
+        if not user_input:
+            return self._payload(
+                [
+                    f"Please list the wardrobe items you'd like to match the {self.data.single_item_type} with."
+                ],
+                expect="text",
+            )
+
+        self.data.wardrobe_items_to_match = user_input
         self.stage = Stage.ITEM_DESC
         return self._payload(
             [
-                f"Describe the {self.data.single_item_type} (color, material, fit, etc.).",
+                f"Great! Now describe the {self.data.single_item_type} you're looking for "
+                f"that will match with: {user_input}"
             ],
             expect="text",
         )
 
     def _handle_item_desc(self, user_input: Optional[str]) -> Dict[str, Any]:
+        """Handle description input for the single item.
+        
+        Stores the item description and transitions to body measurements collection.
+        
+        Args:
+            user_input: User's description of the item (color, material, fit, etc.).
+            
+        Returns:
+            Dict containing body height collection prompt.
+        """
         if not user_input:
             return self._payload(
                 [f"Please describe the {self.data.single_item_type}."], expect="text"
@@ -342,6 +485,17 @@ class Session:
 
     # ---- Body measurements (common tail) --------------------------------
     def _handle_body_height(self, user_input: Optional[str]) -> Dict[str, Any]:
+        """Handle user input for body height measurement.
+        
+        Validates the numeric input for height in centimeters and transitions
+        to weight collection.
+        
+        Args:
+            user_input: User's height input, should be a numeric string.
+            
+        Returns:
+            Dict containing weight collection prompt or validation error.
+        """
         if not self._is_number(user_input):
             return self._payload(["Enter a numeric height in cm."], expect="text")
         # At this point user_input is a valid numeric string
@@ -351,6 +505,17 @@ class Session:
         return self._payload(["Weight (in kg)?"], expect="text")
 
     def _handle_body_weight(self, user_input: Optional[str]) -> Dict[str, Any]:
+        """Handle user input for body weight measurement.
+        
+        Validates the numeric input for weight in kilograms and transitions
+        to age collection.
+        
+        Args:
+            user_input: User's weight input, should be a numeric string.
+            
+        Returns:
+            Dict containing age collection prompt or validation error.
+        """
         if not self._is_number(user_input):
             return self._payload(["Enter a numeric weight in kg."], expect="text")
         assert isinstance(user_input, str)
@@ -359,6 +524,16 @@ class Session:
         return self._payload(["Age?"], expect="text")
 
     def _handle_body_age(self, user_input: Optional[str]) -> Dict[str, Any]:
+        """Handle user input for age and complete the preference collection.
+        
+        Validates the age input as an integer and marks the session as complete.
+        
+        Args:
+            user_input: User's age input, should be a numeric string.
+            
+        Returns:
+            Dict containing completion message with done=True flag.
+        """
         if not user_input or not user_input.isdigit():
             return self._payload(["Enter age as an integer."], expect="text")
         self.data.body["age"] = int(user_input)
@@ -405,6 +580,9 @@ class Session:
             "style": d.style,
             "occasion": d.occasion,
             "outfit_items": d.outfit_items_list,
+            "single_item_type": d.single_item_type,
+            "match_existing": d.match_existing,
+            "wardrobe_items_to_match": d.wardrobe_items_to_match,
             "descriptions": d.descriptions,
             "body": d.body,
         }
