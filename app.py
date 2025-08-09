@@ -22,18 +22,32 @@ class ChatBubble(QWidget):
             title_label.setStyleSheet("font-weight: bold; color: #555; margin: 0 6px;")
             layout.addWidget(title_label, 0, Qt.AlignmentFlag.AlignRight if is_user else Qt.AlignmentFlag.AlignLeft)
 
-        bubble = QLabel(text)
-        bubble.setWordWrap(True)
-        bubble.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        bubble.setStyleSheet(
+        self.bubble = QLabel(text)
+        self.bubble.setWordWrap(True)
+        self.bubble.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
+        self.bubble.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        # Give an initial reasonable max width; will be refined on resize
+        self.bubble.setMaximumWidth(560)
+        self.bubble.setStyleSheet(
             (
                 "background-color: #e0f7ff; color: #003b57; border: 1px solid #b3e5ff;"
                 if is_user
                 else "background-color: #ffffff; color: #333; border: 1px solid #e0e0e0;"
             )
-            + " border-radius: 10px; padding: 8px; max-width: 420px;"
+            + " border-radius: 10px; padding: 8px;"
         )
-        layout.addWidget(bubble, 0, Qt.AlignmentFlag.AlignRight if is_user else Qt.AlignmentFlag.AlignLeft)
+        layout.addWidget(self.bubble, 0, Qt.AlignmentFlag.AlignRight if is_user else Qt.AlignmentFlag.AlignLeft)
+
+    def resizeEvent(self, event):
+        # Dynamically constrain bubble width to a fraction of available width
+        try:
+            avail = max(220, min(self.width() - 40, 640))
+            self.bubble.setMaximumWidth(avail)
+            # Adjust height for new wrap
+            self.bubble.adjustSize()
+        except Exception:
+            pass
+        super().resizeEvent(event)
 
 
 class AutoHideScrollArea(QScrollArea):
