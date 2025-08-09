@@ -411,6 +411,100 @@ class ChatBotUI(QWidget):
         self.input_field.setFixedHeight(40)  # Reset height after sending
         self.input_field.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
+    def display_user_summary_in_bucket(self, data: dict):
+        """Display user's preferences summary and recommendations placeholder in the bucket section."""
+        # Clear any existing content in the articles layout
+        for i in reversed(range(self.articles_layout.count())):
+            child = self.articles_layout.itemAt(i)
+            if child and child.widget():
+                widget = child.widget()
+                if widget:
+                    widget.deleteLater()
+        
+        # Get the user summary from data
+        user_summary = data.get("user_summary", "")
+        
+        # Create a container widget for the summary
+        summary_container = QWidget()
+        summary_layout = QVBoxLayout(summary_container)
+        summary_layout.setContentsMargins(15, 15, 15, 15)
+        summary_layout.setSpacing(15)
+        
+        # Header
+        header_label = QLabel("Your Selection Summary")
+        header_label.setStyleSheet("""
+            QLabel {
+                font-size: 20px;
+                font-weight: bold;
+                color: #2c3e50;
+                margin-bottom: 10px;
+            }
+        """)
+        header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        summary_layout.addWidget(header_label)
+        
+        # User summary
+        if user_summary:
+            summary_text = QLabel(user_summary)
+            summary_text.setStyleSheet("""
+                QLabel {
+                    font-size: 14px;
+                    color: #34495e;
+                    background-color: #f8f9fa;
+                    padding: 15px;
+                    border-radius: 8px;
+                    border: 1px solid #e9ecef;
+                    line-height: 1.6;
+                }
+            """)
+            summary_text.setWordWrap(True)
+            summary_text.setAlignment(Qt.AlignmentFlag.AlignLeft)
+            summary_layout.addWidget(summary_text)
+        
+        # Recommendations placeholder
+        recommendations_header = QLabel("🎯 Personalized Recommendations")
+        recommendations_header.setStyleSheet("""
+            QLabel {
+                font-size: 18px;
+                font-weight: bold;
+                color: #27ae60;
+                margin-top: 10px;
+                margin-bottom: 5px;
+            }
+        """)
+        recommendations_header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        summary_layout.addWidget(recommendations_header)
+        
+        recommendations_placeholder = QLabel(
+            "🔄 Our AI stylist is analyzing your preferences...\n\n"
+            "Your curated recommendations will appear here shortly!\n\n"
+            "This will include:\n"
+            "• Perfectly matched items based on your style\n"
+            "• Size and fit recommendations\n"
+            "• Price comparisons from top retailers"
+        )
+        recommendations_placeholder.setStyleSheet("""
+            QLabel {
+                font-size: 14px;
+                color: #7f8c8d;
+                background-color: #ffffff;
+                padding: 20px;
+                border: 2px dashed #3498db;
+                border-radius: 10px;
+                text-align: center;
+                line-height: 1.8;
+            }
+        """)
+        recommendations_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        recommendations_placeholder.setWordWrap(True)
+        summary_layout.addWidget(recommendations_placeholder)
+        
+        # Add stretch to push content to top
+        summary_layout.addStretch()
+        
+        # Add the summary container to the articles layout
+        self.articles_layout.addWidget(summary_container, 0, 0)
+
     def handle_payload(self, payload: dict):
         # Render backend messages
         for msg in payload.get("messages", []):
@@ -421,6 +515,11 @@ class ChatBotUI(QWidget):
             hint = " / ".join(payload["choices"])  # simple inline hint
             hint_msg = ChatBubble(f"Options: {hint}", is_user=False, title="Bot")
             self.chat_area.insertWidget(self.chat_area.count(), hint_msg, alignment=Qt.AlignmentFlag.AlignBottom)
+        
+        # Show summary in bucket when requested
+        if payload.get("show_summary"):
+            self.display_user_summary_in_bucket(payload.get("data", {}))
+            
         # Disable input when done
         if payload.get("done"):
             self.input_field.setDisabled(True)
