@@ -11,8 +11,17 @@ from PyQt6.QtCore import Qt, QTimer, QEvent, pyqtSignal
 from typing import cast, Optional
 
 class ChatBubble(QWidget):
+    """A chat bubble that expands vertically to fit multi-line text.
+
+    Uses QTextBrowser to reliably compute document height for the given width,
+    avoiding QLabel's occasional one-line height calculation on macOS.
+    """
+
     def __init__(self, text: str, is_user: bool = False, title: Optional[str] = None):
         super().__init__()
+        self._hpad = 16  # total horizontal padding (8px left + 8px right)
+        self._vpad = 16  # total vertical padding (8px top + 8px bottom)
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(2)
@@ -22,13 +31,19 @@ class ChatBubble(QWidget):
             title_label.setStyleSheet("font-weight: bold; color: #555; margin: 0 6px;")
             layout.addWidget(title_label, 0, Qt.AlignmentFlag.AlignRight if is_user else Qt.AlignmentFlag.AlignLeft)
 
-        self.bubble = QLabel(text)
-        self.bubble.setWordWrap(True)
-        self.bubble.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
-        self.bubble.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        # Give an initial reasonable max width; will be refined on resize
-        self.bubble.setMaximumWidth(560)
-        self.bubble.setStyleSheet(
+        # Use QTextBrowser so we can control wrapping width and compute height
+        bubble = QTextBrowser()
+        bubble.setPlainText(text)
+        bubble.setReadOnly(True)
+        bubble.setFrameStyle(QFrame.Shape.NoFrame)
+        bubble.setOpenExternalLinks(False)
+        bubble.setOpenLinks(False)
+        bubble.setWordWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
+        bubble.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        bubble.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        bubble.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        bubble.setStyleSheet(
             (
                 "background-color: #e0f7ff; color: #003b57; border: 1px solid #b3e5ff;"
                 if is_user
@@ -36,17 +51,39 @@ class ChatBubble(QWidget):
             )
             + " border-radius: 10px; padding: 8px;"
         )
+
+        self.bubble = bubble
         layout.addWidget(self.bubble, 0, Qt.AlignmentFlag.AlignRight if is_user else Qt.AlignmentFlag.AlignLeft)
 
-    def resizeEvent(self, event):
-        # Dynamically constrain bubble width to a fraction of available width
+        # Initial sizing
+        self._update_size()
+
+    def _update_size(self) -> None:
         try:
             avail = max(220, min(self.width() - 40, 640))
-            self.bubble.setMaximumWidth(avail)
-            # Adjust height for new wrap
-            self.bubble.adjustSize()
+            if avail < 100:
+                avail = 220
+            # Set the text width for proper wrapping, accounting for padding
+            doc = self.bubble.document()
+            if doc is None:
+                return
+            doc.setTextWidth(max(10.0, float(avail - self._hpad)))
+            # Apply width and compute height from the document
+            self.bubble.setFixedWidth(avail)
+            # Prefer layout's documentSize when available
+            layout = doc.documentLayout()
+            if layout is not None:
+                sizef = layout.documentSize()
+                doc_h = int(sizef.height())
+            else:
+                doc_h = int(doc.size().height())
+            self.bubble.setFixedHeight(doc_h + self._vpad)
         except Exception:
             pass
+
+    def resizeEvent(self, event):
+        # Recompute layout when container resizes
+        self._update_size()
         super().resizeEvent(event)
 
 
