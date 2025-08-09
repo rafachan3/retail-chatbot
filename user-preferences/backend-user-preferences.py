@@ -538,7 +538,11 @@ class Session:
             return self._payload(["Enter age as an integer."], expect="text")
         self.data.body["age"] = int(user_input)
         self.stage = Stage.COMPLETE
-        return self._payload(["Thanks! Preference collection complete."], done=True)
+        return self._payload(
+            ["Perfect! I have all the information I need. Generating your personalized recommendations..."], 
+            done=True, 
+            show_summary=True
+        )
 
     # ---------------------------------------------------------------------
     # Helpers
@@ -549,6 +553,7 @@ class Session:
         expect: str = "text",
         choices: Optional[List[str]] = None,
         done: bool = False,
+        show_summary: bool = False,
     ) -> Dict[str, Any]:
         """Build a consistent response payload for the GUI and log it."""
 
@@ -558,24 +563,58 @@ class Session:
             "expect": expect,
             "choices": choices or [],
             "done": done,
+            "show_summary": show_summary,
             "data": self._snapshot(),
         }
         self.logger.info(
-            "<< stage=%s | expect=%s | choices=%s | done=%s | data=%s | messages=%s",
+            "<< stage=%s | expect=%s | choices=%s | done=%s | show_summary=%s | data=%s | messages=%s",
             self.stage.name,
             expect,
             payload["choices"],
             done,
+            show_summary,
             payload["data"],
             messages,
         )
         return payload
 
+    def _generate_user_summary(self) -> str:
+        """Generate a user-friendly summary of collected preferences."""
+        d = self.data
+        summary_parts = []
+        
+        # Mode and style
+        if d.mode == "outfit":
+            summary_parts.append(f"✨ Looking for: A complete {d.style} outfit")
+            if d.outfit_items_list:
+                items_text = ", ".join(d.outfit_items_list)
+                summary_parts.append(f"📝 Items: {items_text}")
+            if d.occasion:
+                summary_parts.append(f"🎯 Occasion: {d.occasion.title()} wear")
+        else:
+            summary_parts.append(f"✨ Looking for: A {d.style} {d.single_item_type}")
+            if d.match_existing and d.wardrobe_items_to_match:
+                summary_parts.append(f"👔 To match with: {d.wardrobe_items_to_match}")
+        
+        # Body measurements
+        if d.body:
+            measurements = []
+            if "height_cm" in d.body:
+                measurements.append(f"{int(d.body['height_cm'])}cm")
+            if "weight_kg" in d.body:
+                measurements.append(f"{int(d.body['weight_kg'])}kg")
+            if "age" in d.body:
+                measurements.append(f"{d.body['age']} years old")
+            if measurements:
+                summary_parts.append(f"📏 Profile: {' • '.join(measurements)}")
+        
+        return "\n".join(summary_parts)
+
     def _snapshot(self) -> Dict[str, Any]:
         """Small, public-friendly snapshot of the collected data."""
 
         d = self.data
-        return {
+        snapshot = {
             "mode": d.mode,
             "style": d.style,
             "occasion": d.occasion,
@@ -586,6 +625,12 @@ class Session:
             "descriptions": d.descriptions,
             "body": d.body,
         }
+        
+        # Add user summary if session is complete
+        if self.stage == Stage.COMPLETE:
+            snapshot["user_summary"] = self._generate_user_summary()
+            
+        return snapshot
 
     @staticmethod
     def _is_number(value: Optional[str]) -> bool:
