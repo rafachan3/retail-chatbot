@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
     QLineEdit, QPushButton, QLabel, QScrollArea,
     QFrame, QSizePolicy, QTextBrowser, QGridLayout, QTextEdit, QScrollBar
 )
-from PyQt6.QtGui import QPixmap, QTextDocument, QFontMetrics, QTextOption, QKeyEvent, QAbstractTextDocumentLayout
+from PyQt6.QtGui import QPixmap, QTextDocument, QFontMetrics, QTextOption, QKeyEvent, QAbstractTextDocumentLayout, QFont
 from PyQt6.QtCore import Qt, QTimer, QEvent, pyqtSignal
 from typing import cast, Optional
 
@@ -28,7 +28,7 @@ class ChatBubble(QWidget):
 
         if title:
             title_label = QLabel(title)
-            title_label.setStyleSheet("font-weight: bold; color: #555; margin: 0 6px;")
+            title_label.setStyleSheet("font-weight: bold; color: white;")
             layout.addWidget(title_label, 0, Qt.AlignmentFlag.AlignRight if is_user else Qt.AlignmentFlag.AlignLeft)
 
         # Use QTextBrowser so we can control wrapping width and compute height
@@ -45,12 +45,17 @@ class ChatBubble(QWidget):
 
         bubble.setStyleSheet(
             (
-                "background-color: #e0f7ff; color: #003b57; border: 1px solid #b3e5ff;"
+                "background-color: #1C1C2D; color: white;"
                 if is_user
-                else "background-color: #ffffff; color: #333; border: 1px solid #e0e0e0;"
+                else "color: white;"
             )
             + " border-radius: 10px; padding: 8px;"
         )
+
+        if is_user:
+                bubble.setHtml(f'<div style="text-align: right;">{text}</div>')
+        else:
+            bubble.setPlainText(text)
 
         self.bubble = bubble
         layout.addWidget(self.bubble, 0, Qt.AlignmentFlag.AlignRight if is_user else Qt.AlignmentFlag.AlignLeft)
@@ -179,18 +184,18 @@ class AutoHideScrollArea(QScrollArea):
         self.scrollbar.setStyleSheet(
             """
             QScrollBar:vertical {
-                background: transparent;
+                background: #27263C;
                 width: 8px;
                 margin: 0;
             }
             QScrollBar::handle:vertical {
-                background: transparent;
+                background: #27263C;
                 min-height: 30px;
                 width: 0px;
             }
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical,
             QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
-                background: none;
+                background: #27263C;
                 height: 0;
                 border: none;
             }
@@ -247,10 +252,10 @@ class ChatBotUI(QWidget):
                     doc_h = int(sizef.height())
                 except Exception:
                     doc_h = 0
-        new_height = (doc_h + 12) if doc_h > 0 else 40  # Add padding or fallback
+        new_height = (doc_h + 12) if doc_h > 0 else 60  # Add padding or fallback
 
-        if new_height < 40:
-            new_height = 40  # minimum height same as button
+        if new_height < 60:
+            new_height = 60  # minimum height same as button
 
         if new_height > self.max_input_height:
             new_height = self.max_input_height
@@ -259,111 +264,131 @@ class ChatBotUI(QWidget):
             self.input_field.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         self.input_field.setFixedHeight(new_height)
+    
+    def resizeEvent(self, event):
+        # Recompute layout when container resizes
+        self.on_text_changed()
+        super().resizeEvent(event)
 
     def setup_ui(self):
         # === Main horizontal layout (split screen) ===
-        main_layout = QHBoxLayout()
-        main_layout.setContentsMargins(10, 10, 10, 10)
-        main_layout.setSpacing(10)
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
 
         # ====================
-        # === Left Panel (Articles Bucket - 70%) ===
+        # === Top Panel (Branding - 12%) ===
         # ====================
-        left_panel = QVBoxLayout()
 
-        # Title
-        bucket_title = QLabel("Your Bucket")
-        bucket_title.setStyleSheet("font-size: 20px; font-weight: bold;")
-        bucket_title.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        top_panel = QWidget()
+        top_panel.setStyleSheet("background-color: #353451;")
 
-        # Articles zone
-        self.articles_layout = QGridLayout()  # Can be used to display articles in a grid bucket format
-
-        articles_widget = QWidget()
-        articles_widget.setLayout(self.articles_layout)
-
-        articles_scroll = QScrollArea()
-        articles_scroll.setWidgetResizable(True)
-        articles_scroll.setWidget(articles_widget)
-        articles_scroll.setStyleSheet("background-color: #ffffff; border: 1px solid #ccc;")
-
-        # Confirm button
-        confirm_button = QPushButton("Confirm Bucket")
-        confirm_button.setStyleSheet("padding: 10px; font-weight: bold; background-color: #4CAF50; color: white;")
-
-        # Add to left panel
-        left_panel.addWidget(bucket_title)
-        left_panel.addWidget(articles_scroll, stretch=1)
-        left_panel.addWidget(confirm_button)
-
-        # ====================
-        # === Right Panel (Chat - 30%) ===
-        # ====================
-        right_panel = QVBoxLayout()
+        # Create layout for the top panel
+        top_layout = QHBoxLayout(top_panel)
+        top_layout.setContentsMargins(15, 0, 0, 0)  # Left margin for label spacing
+        top_layout.setSpacing(0)
 
         # Brand label
         brand_label = QLabel("STYLIST")
-        brand_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        brand_label.setStyleSheet("font-size: 24px; font-weight: bold; margin-bottom: 10px;")
+        brand_label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
-        # Logo image
-        image_label = QLabel()
-        pixmap = QPixmap("chatbot_logo.png")
-        pixmap = pixmap.scaledToWidth(80, Qt.TransformationMode.SmoothTransformation)
-        image_label.setPixmap(pixmap)
-        image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        font = QFont()
+        font.setPointSize(50)
+        font.setWeight(QFont.Weight.Black)  # Heavy weight for bold effect
+        font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 10)  # 10px extra space
+        brand_label.setFont(font)
+
+        brand_label.setStyleSheet("color: white;")
+
+        # Add label to top panel layout
+        top_layout.addWidget(brand_label)
+
+        # ====================
+        # === Chat Panel (Chat - 88%) ===
+        # ====================
+
+        chat_panel = QVBoxLayout()
 
         # Chat area
         self.chat_area = QVBoxLayout()
-        self.chat_area.insertStretch(0, 1)
+        self.chat_area.setContentsMargins(15, 15, 7, 15)
+        self.chat_area.setSpacing(6)
 
         chat_container = QWidget()
         chat_container.setLayout(self.chat_area)
+        chat_container.setStyleSheet("background-color: #27263C;")
+
+        self.chat_area.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         self.chat_scroll_area = AutoHideScrollArea()
         self.chat_scroll_area.setWidgetResizable(True)
         self.chat_scroll_area.setWidget(chat_container)
-        self.chat_scroll_area.setStyleSheet("background-color: #f5f5f5; border: none;")
+        self.chat_scroll_area.setStyleSheet("background-color: #27263C; border: none;")
 
         # Input area
         input_layout = QHBoxLayout()
+        input_layout.setContentsMargins(15, 0, 15, 15)  # Margins for input area
+        input_layout.setSpacing(15)
+
+        input_container = QWidget()
+        input_container.setLayout(input_layout)
+        input_container.setStyleSheet("""
+            background-color: #27263C;
+        """)
+
         self.max_input_height = 100  # Max height for input before scrollbar
 
         self.input_field = EnterTextEdit()
         self.input_field.setAcceptRichText(False)
         self.input_field.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.input_field.setFixedHeight(40)  # Start height same as button
+        self.input_field.setFixedHeight(60)  # Requirement 4
         self.input_field.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.input_field.setPlaceholderText("Type your message...")
+
+        # Apply stylesheet
         self.input_field.setStyleSheet("""
             QTextEdit {
-                border: 1px solid #ccc;
-                border-radius: 8px;
-                padding: 6px;
-                font-size: 14px;
+                border: 3px solid #E6E6E6;
+                border-radius: 25px;
+                padding: 10px;
+                font-size: 15px;
+                color: white;
+                background-color: #353451;
+            }
+            QTextEdit viewport {
+                border-radius: 25px;
+                background-color: #353451;
+            }
+            QScrollBar:vertical {
+                background: #353451;
+                width: 8px;
+                margin: 0;
             }
         """)
 
+        # Ensure vertical alignment (center)
+        self.input_field.setViewportMargins(0, 3, 0, 2)
+
         self.send_btn = QPushButton()
-        self.send_btn.setFixedSize(40, 40)  # Circular size
+        self.send_btn.setFixedSize(60, 60)  # Circular size
         self.send_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.send_btn.hide()  # Initially hidden
 
         # Style: circle + arrow (using CSS unicode for arrow)
         self.send_btn.setStyleSheet("""
             QPushButton {
-                border-radius: 20px;
-                background-color: #0078d7;
+                border-radius: 30px;
+                background-color: #14577B;
                 color: white;
                 font-size: 20px;
                 font-weight: bold;
                 qproperty-icon: none;
             }
             QPushButton:hover {
-                background-color: #005a9e;
+                background-color: black;
             }
         """)
-        self.send_btn.setText("→")  # Right arrow unicode
+        self.send_btn.setText("↑")  # Right arrow unicode
 
         input_layout.addWidget(self.input_field)
         input_layout.addWidget(self.send_btn)
@@ -373,17 +398,15 @@ class ChatBotUI(QWidget):
         self.input_field.enterPressed.connect(self.send_message)
         self.send_btn.clicked.connect(self.send_message)
 
-        # Add to right panel
-        right_panel.addWidget(brand_label)
-        right_panel.addWidget(image_label)
-        right_panel.addWidget(self.chat_scroll_area, stretch=1)
-        right_panel.addLayout(input_layout)
+        # Add to chat panel
+        chat_panel.addWidget(self.chat_scroll_area, stretch=1)
+        chat_panel.addWidget(input_container)
 
         # ====================
         # === Add both panels to main layout ===
         # ====================
-        main_layout.addLayout(left_panel, stretch=7)
-        main_layout.addLayout(right_panel, stretch=3)
+        main_layout.addWidget(top_panel, stretch=12)
+        main_layout.addLayout(chat_panel, stretch=88)
 
         self.setLayout(main_layout)
 
@@ -393,7 +416,7 @@ class ChatBotUI(QWidget):
             return
 
         # Render user message
-        u_msg = ChatBubble(f"{user_text}", is_user=True, title="You")
+        u_msg = ChatBubble(f"{user_text}", is_user=True)
         self.chat_area.insertWidget(self.chat_area.count(), u_msg, alignment=Qt.AlignmentFlag.AlignBottom)
 
         # Route to backend
@@ -408,107 +431,113 @@ class ChatBotUI(QWidget):
         # Reset input
         self.input_field.clear()
         self.send_btn.hide()
-        self.input_field.setFixedHeight(40)  # Reset height after sending
+        self.input_field.setFixedHeight(60)  # Reset height after sending
         self.input_field.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    
+    def setup_summary_ui(self, data):
+        # Create overlay
+        overlay = QWidget()
+        overlay.setStyleSheet("background-color: rgba(0, 0, 0, 80); border-radius: 0px;")
+        overlay.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
 
-    def display_user_summary_in_bucket(self, data: dict):
-        """Display user's preferences summary and recommendations placeholder in the bucket section."""
-        # Clear any existing content in the articles layout
-        for i in reversed(range(self.articles_layout.count())):
-            child = self.articles_layout.itemAt(i)
-            if child and child.widget():
-                widget = child.widget()
-                if widget:
-                    widget.deleteLater()
-        
-        # Get the user summary from data
+        chat_container = self.chat_scroll_area.widget()
+        overlay.setParent(chat_container)
+        QTimer.singleShot(100, lambda: overlay.resize(chat_container.size()))
+        overlay.show()
+
+
+        # 2. Remove original input area
+        main_layout = self.layout()
+        chat_panel = main_layout.itemAt(1).layout()
+        input_container_item = chat_panel.itemAt(1)
+        if input_container_item is not None:
+            input_container_widget = input_container_item.widget()
+            if input_container_widget is not None:
+                chat_panel.removeWidget(input_container_widget)
+                input_container_widget.deleteLater()
+
+        # 3. Create new summary area + recommendations button layout
+        new_area = QWidget()
+        new_area_layout = QHBoxLayout(new_area)
+        new_area_layout.setContentsMargins(0, 0, 0, 0)
+        new_area_layout.setSpacing(0)
+
+        # --- Build your detailed summary container here ---
         user_summary = data.get("user_summary", "")
-        
-        # Create a container widget for the summary
+
         summary_container = QWidget()
+        summary_container.setStyleSheet("background-color: #27263C;")
         summary_layout = QVBoxLayout(summary_container)
         summary_layout.setContentsMargins(15, 15, 15, 15)
-        summary_layout.setSpacing(15)
-        
+        summary_layout.setSpacing(0)
+
         # Header
-        header_label = QLabel("Your Selection Summary")
+        header_label = QLabel("Your selection summary")
         header_label.setStyleSheet("""
             QLabel {
                 font-size: 20px;
                 font-weight: bold;
-                color: #2c3e50;
-                margin-bottom: 10px;
+                color: white;
             }
         """)
-        header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
         summary_layout.addWidget(header_label)
-        
-        # User summary
+
+        # User summary text
         if user_summary:
             summary_text = QLabel(user_summary)
             summary_text.setStyleSheet("""
                 QLabel {
-                    font-size: 14px;
-                    color: #34495e;
-                    background-color: #f8f9fa;
-                    padding: 15px;
-                    border-radius: 8px;
-                    border: 1px solid #e9ecef;
-                    line-height: 1.6;
+                    font-size: 15px;
+                    color: white;
+                    background-color: #27263C;
+                    padding: 10px;
                 }
             """)
             summary_text.setWordWrap(True)
             summary_text.setAlignment(Qt.AlignmentFlag.AlignLeft)
             summary_layout.addWidget(summary_text)
-        
-        # Recommendations placeholder
-        recommendations_header = QLabel("🎯 Personalized Recommendations")
-        recommendations_header.setStyleSheet("""
-            QLabel {
-                font-size: 18px;
-                font-weight: bold;
-                color: #27ae60;
-                margin-top: 10px;
-                margin-bottom: 5px;
-            }
-        """)
-        recommendations_header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        summary_layout.addWidget(recommendations_header)
-        
-        recommendations_placeholder = QLabel(
-            "🔄 Our AI stylist is analyzing your preferences...\n\n"
-            "Your curated recommendations will appear here shortly!\n\n"
-            "This will include:\n"
-            "• Perfectly matched items based on your style\n"
-            "• Size and fit recommendations\n"
-            "• Price comparisons from top retailers"
-        )
-        recommendations_placeholder.setStyleSheet("""
-            QLabel {
-                font-size: 14px;
-                color: #7f8c8d;
-                background-color: #ffffff;
-                padding: 20px;
-                border: 2px dashed #3498db;
-                border-radius: 10px;
-                text-align: center;
-                line-height: 1.8;
-            }
-        """)
-        recommendations_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        recommendations_placeholder.setWordWrap(True)
-        summary_layout.addWidget(recommendations_placeholder)
-        
-        # Add stretch to push content to top
+
+        # Push everything to top
         summary_layout.addStretch()
-        
-        # Add the summary container to the articles layout
-        self.articles_layout.addWidget(summary_container, 0, 0)
+
+        # Button container for "My recommendations"
+        button_container = QWidget()
+        button_container.setStyleSheet("background-color: #27263C;")
+        button_layout = QVBoxLayout(button_container)
+        button_layout.setContentsMargins(0, 0, 15, 15)
+        button_layout.addStretch()
+
+        recommendations_btn = QPushButton("My recommendations →")
+        recommendations_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        recommendations_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #27263C;
+                color: white;
+                border-radius: 12px;
+                font-size: 20px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: black;
+            }
+        """)
+
+        button_layout.addWidget(recommendations_btn, alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom)
+
+        new_area_layout.addWidget(summary_container)
+        new_area_layout.addWidget(button_container)
+
+        # Insert the new area widget into the chat panel layout at position 1
+        chat_panel.insertWidget(1, new_area)
 
     def handle_payload(self, payload: dict):
         # Render backend messages
-        for msg in payload.get("messages", []):
-            b_msg = ChatBubble(f"{msg}", is_user=False, title="Bot")
+        for i, msg in enumerate(payload.get("messages", [])):
+            if i == 0:
+                b_msg = ChatBubble(f"{msg}", is_user=False, title="Bot")
+            else:
+                b_msg = ChatBubble(f"{msg}", is_user=False)
             self.chat_area.insertWidget(self.chat_area.count(), b_msg, alignment=Qt.AlignmentFlag.AlignBottom)
         # Simple presentation of choices (if any)
         if payload.get("expect") == "choice" and payload.get("choices"):
@@ -518,11 +547,7 @@ class ChatBotUI(QWidget):
         
         # Show summary in bucket when requested
         if payload.get("show_summary"):
-            self.display_user_summary_in_bucket(payload.get("data", {}))
-            
-        # Disable input when done
-        if payload.get("done"):
-            self.input_field.setDisabled(True)
+            self.setup_summary_ui(payload.get("data", {}))
 
 
 if __name__ == "__main__":
