@@ -62,37 +62,60 @@ except Exception as e:
 # Fashion domain keep list to preserve context words
 _DOMAIN_KEEP = {
     # Colors
-    "black","white","gray","grey","silver","charcoal","navy","blue","light","dark","midnight","indigo","cyan","teal","aqua","turquoise",
+    "black","white","gray","grey","silver","charcoal","graphite","slate","navy","blue","light","dark","midnight","indigo","cyan","teal","aqua","turquoise",
     "green","olive","khaki","lime","forest","emerald","mint","brown","tan","beige","camel","chocolate","mocha","sand","taupe",
     "red","maroon","burgundy","wine","crimson","pink","blush","rose","magenta","fuchsia","purple","violet","lavender","lilac",
-    "orange","rust","terracotta","coral","peach","apricot","yellow","mustard","gold","golden","cream","offwhite","off-white",
+    "orange","rust","terracotta","coral","peach","apricot","yellow","mustard","gold","golden","cream","ivory","ecru","offwhite","off-white",
     # Materials
     "cotton","denim","leather","faux","suede","wool","cashmere","merino","linen","silk","satin","viscose","rayon","polyester","nylon","spandex","elastane","lyocell","tencel","modal","acrylic",
+    "twill","poplin","corduroy","velvet","fleece","gabardine","down","shearling","sherpa","canvas","mesh","lace","chiffon","organza","sequin","sequins","boucle",
     # Patterns & finishes
-    "solid","plain","striped","stripes","pinstripe","checks","checked","plaid","gingham","houndstooth","herringbone","jacquard","floral","paisley","abstract","geometric","animal","leopard","zebra","camouflage","camo",
-    "ribbed","waffle","cable","quilted","matte","glossy","shiny","metallic","distressed","washed","acid","stonewashed","raw","selvedge","seersucker",
+    "solid","plain","striped","stripes","pinstripe","pin-stripe","checks","checked","plaid","gingham","houndstooth","herringbone","jacquard","floral","paisley","abstract","geometric","animal","leopard","zebra","camouflage","camo",
+    "polkadot","polka-dot","chevron","argyle","windowpane","window-pane","microcheck","micro-check","microstripe","micro-stripe",
+    "ribbed","waffle","cable","quilted","matte","glossy","shiny","metallic","distressed","washed","acid","stonewashed","raw","selvedge","seersucker","brushed","waxed","garmentdyed","garment-dyed",
     # Fits & silhouettes
-    "slim","skinny","regular","relaxed","loose","oversized","tapered","straight","bootcut","flare","flared","wide","baggy","cropped","fitted","boxy","athletic","tailored","high","mid","low","rise","drop","waist",
+    "slim","skinny","regular","relaxed","loose","oversized","tapered","straight","bootcut","flare","flared","wide","baggy","cropped","fitted","boxy","athletic","tailored",
+    "high","mid","low","rise","drop","waist","petite","tall","curvy","maternity","longline","long-line",
     # Garment parts & construction
-    "crew","vneck","v-neck","scoop","boatneck","turtleneck","mockneck","henley","button","buttoned","buttons","zip","zipper","halfzip","half-zip","fullzip","full-zip",
+    "crew","crewneck","vneck","v-neck","scoop","boatneck","turtleneck","mockneck","henley","button","buttoned","buttons","zip","zipper","halfzip","half-zip","fullzip","full-zip",
     "collar","spread","point","buttondown","button-down","band","mandarin","shawl","lapel","notch","peak","double","single","breasted",
     "sleeve","shortsleeve","short-sleeve","longsleeve","long-sleeve","sleeveless","cap","raglan","dolman","cuff","cuffed",
-    "hem","rawhem","raw-hem","curvedhem","curved-hem","splithem","split-hem","drawstring","elastic","elasticated","belt","belted","pleat","pleated","dart","yoke",
+    "hem","rawhem","raw-hem","curvedhem","curved-hem","splithem","split-hem","drawstring","elastic","elasticated","belt","belted","pleat","pleated","dart","yoke","hood","hooded",
     # Item types
-    "tshirt","t-shirt","tee","shirt","oxford","polo","blouse","top","tank","camisole","sweater","jumper","hoodie","sweatshirt","cardigan","jacket","blazer","coat","trench","puffer","parka","gilet","vest",
-    "jeans","chinos","trousers","pants","shorts","skirt","dress","jumpsuit","playsuit","suit","suiting","sweatpants","joggers","leggings","tights",
+    "tshirt","t-shirt","tee","shirt","oxford","polo","blouse","top","tank","camisole","sweater","jumper","hoodie","sweatshirt","cardigan",
+    "jacket","blazer","coat","trench","puffer","parka","gilet","vest","overcoat","peacoat","bomber","biker","trucker","windbreaker","anorak","shacket","overshirt",
+    "jeans","chinos","trousers","pants","shorts","skirt","dress","jumpsuit","playsuit","suit","suiting","sweatpants","joggers","leggings","tights","cargos","cargo","slacks",
     # Footwear & accessories
-    "sneakers","trainers","running","shoes","boots","chelsea","derby","oxford","loafer","sandals","heels","flats","mules","clogs",
+    "sneakers","trainers","running","shoes","boots","chelsea","derby","oxford","loafer","loafers","brogue","brogues","monkstrap","monk-strap","sandals",
+    "heels","flats","mules","clogs","espadrille","espadrilles","slides","flipflops","flip-flops",
     "bag","backpack","tote","crossbody","cross-body","belt","scarf","beanie","cap","hat","gloves","socks","tie","bowtie","bow-tie",
+    "wallet","briefcase","duffle","duffel","satchel","watch","sunglasses",
     # Style/occasion cues
-    "casual","smart","formal","business","businesscasual","streetwear","sporty","athleisure","minimal","classic","vintage","retro","edgy","preppy","boho","bohemian","elegant",
-    "wedding","party","evening","office","work","weekend","holiday","vacation","travel","outdoor","hiking","gym","training",
+    "casual","smart","formal","business","professional","businesscasual","business-casual","businessformal","business-formal","smartcasual","smart-casual",
+    "streetwear","sporty","athleisure","athletic","athflow",
+    "minimal","minimalist","minimalistic","maximalist","classic","vintage","retro",
+    "modern","contemporary","chic","elegant","sophisticated","refined","elevated","polished","sleek","clean","crisp",
+    "edgy","preppy","boho","bohemian","artsy","avantgarde","avant-garde","androgynous","genderneutral","gender-neutral",
+    "rugged","utilitarian","utility","workwear","heritage","artisan","artisanal",
+    "monochrome","monochromatic","colorblock","color-block","pastel","neon","earthy",
+    "quietluxury","quiet-luxury","oldmoney","old-money","luxe","luxury",
+    "normcore","gorpcore","cottagecore","balletcore","barbiecore","regencycore","darkacademia","dark-academia","mermaidcore","indiesleaze","indie","y2k","70s","80s","90s","2000s",
+    "grunge","punk","goth","emo","rock","metal","techwear","cyberpunk","retro-futuristic","retrofuturistic",
+    "western","cowboy","cowgirl","americana","military","safari","nautical","coastal","coastalgrandma","coastal-grandma",
+    # Occasions & contexts
+    "wedding","weddingguest","wedding-guest","bridesmaid","groomsman","party","evening","office","work","weekend","holiday","vacation","travel","airport","airplane","outdoor","hiking","gym","training",
+    "festival","concert","club","clubbing","nightout","night-out","datenight","date-night","date","brunch","dinner","picnic",
+    "beach","pool","resort","cruise","apresski","apres-ski","ski","snowboard",
+    "rainy","rainwear","winter","summer","spring","fall","autumn",
+    "interview","presentation","meeting","clientmeeting","client-meeting","conference","networking","graduation","gala","cocktail","blacktie","black-tie","whitetie","white-tie",
+    "commute","errands","loungewear","home","workfromhome","work-from-home","officeparty","office-party","teamdinner","team-dinner",
     # Lengths & coverage
-    "mini","midi","maxi","ankle","fulllength","full-length","knee","above","below","threequarter","three-quarter","7/8","crop","cropped",
+    "mini","midi","maxi","ankle","fulllength","full-length","knee","above","below","threequarter","three-quarter","7/8","crop","cropped","short","long",
     # Washes & treatments
-    "lightwash","light-wash","midwash","mid-wash","darkwash","dark-wash","vintagewash","vintage-wash","rinse","rawdenim","fade","faded",
+    "lightwash","light-wash","midwash","mid-wash","darkwash","dark-wash","vintagewash","vintage-wash","rinse","rawdenim","fade","faded","whiskered","whiskering","destroyed",
     # Other descriptive terms
-    "breathable","stretch","stretchy","soft","cozy","warm","lightweight","heavyweight","midweight","waterproof","water-resistant","windproof","insulated","lined","unlined",
+    "breathable","stretch","stretchy","soft","cozy","warm","lightweight","heavyweight","midweight",
+    "waterproof","water-resistant","waterrepellent","water-repellent","rainproof","windproof","insulated","lined","unlined","packable","quickdry","quick-dry","wrinklefree","wrinkle-free",
 }
 
 _STOPWORDS = _NLTK_STOPWORDS - _DOMAIN_KEEP
@@ -101,19 +124,22 @@ _STOPWORDS = _NLTK_STOPWORDS - _DOMAIN_KEEP
 # (used to detect multiple items accidentally placed in one comma chunk)
 ITEM_TYPE_TOKENS = {
     # Tops
-    "tshirt", "t-shirt", "tee", "shirt", "oxford", "polo", "blouse", "top", "tank",
+    "tshirt", "t-shirt", "tee", "shirt", "oxford", "polo", "blouse", "top", "tank", "camisole",
     "sweater", "jumper", "hoodie", "sweatshirt", "cardigan", "jacket", "blazer", "coat",
-    "trench", "puffer", "parka", "gilet", "vest",
+    "trench", "puffer", "parka", "gilet", "vest", "overcoat", "peacoat", "bomber", "biker", "trucker", "windbreaker", "anorak", "shacket", "overshirt",
     # Bottoms
     "jeans", "chinos", "trousers", "pants", "shorts", "skirt", "dress", "jumpsuit", "playsuit",
-    "suit", "sweatpants", "joggers", "leggings", "tights",
+    "suit", "sweatpants", "joggers", "leggings", "tights", "cargos", "cargo", "slacks",
     # Footwear
-    "sneakers", "trainers", "shoes", "boots", "chelsea", "derby", "oxford", "loafer", "sandals",
-    "heels", "flats", "mules", "clogs",
+    "sneakers", "trainers", "shoes", "boots", "chelsea", "derby", "oxford", "loafer", "loafers", "sandals",
+    "heels", "flats", "mules", "clogs", "brogue", "brogues", "monkstrap", "monk-strap", "espadrille", "espadrilles", "slides", "flipflops", "flip-flops",
     # Accessories
     "bag", "backpack", "tote", "crossbody", "belt", "scarf", "beanie", "cap", "hat",
-    "gloves", "socks", "tie", "bowtie",
+    "gloves", "socks", "tie", "bowtie", "wallet", "briefcase", "duffle", "duffel", "satchel", "watch", "sunglasses",
 }
+
+# Combined hints used to validate meaningful fashion-related inputs
+DOMAIN_HINTS: set[str] = set(_DOMAIN_KEEP) | set(ITEM_TYPE_TOKENS)
 
 
 class Stage(Enum):
@@ -331,6 +357,15 @@ class Session:
         if not re.search(r"[A-Za-z]", user_input or ""):
             return self._payload(["Please describe a style or mood with words (not just numbers)."], expect="text")
 
+        # Sanity check for meaningful style text
+        if not self._looks_meaningful_style(user_input):
+            return self._payload(
+                [
+                    "That doesn't look like a fashion style. Try terms like 'casual', 'smart', 'minimal', 'streetwear'."
+                ],
+                expect="text",
+            )
+
         # Store raw + cleaned variants
         self.data.style = user_input
         self.data.style_clean = self._normalize_text(user_input)
@@ -506,6 +541,15 @@ class Session:
                 [f"Please describe the {self.data.current_item}."], expect="text"
             )
 
+        # Require at least one fashion-domain term
+        if not self._has_domain_words(user_input):
+            return self._payload(
+                [
+                    f"Please include fashion details for the {self.data.current_item} (e.g., color, material, fit like 'navy, slim, cotton')."
+                ],
+                expect="text",
+            )
+
         # Store description for the current item (raw + cleaned)
         assert self.data.current_item is not None
         self.data.descriptions[self.data.current_item] = user_input
@@ -633,6 +677,15 @@ class Session:
         if not user_input:
             return self._payload(
                 [f"Please describe the {self.data.single_item_type}."], expect="text"
+            )
+
+        # Require at least one fashion-domain term
+        if not self._has_domain_words(user_input):
+            return self._payload(
+                [
+                    f"Please include fashion details for the {self.data.single_item_type} (e.g., color, material, fit like 'black leather, slim, cropped')."
+                ],
+                expect="text",
             )
 
         assert self.data.single_item_type is not None
@@ -829,6 +882,29 @@ class Session:
         tokens = self._tokenize(text)
         filtered = [t for t in tokens if t not in _STOPWORDS]
         return " ".join(filtered)
+
+    # --- Validation helpers ---
+    def _has_domain_words(self, text: str, min_hits: int = 1) -> bool:
+        """Return True if text contains at least `min_hits` known fashion terms.
+
+        Uses both hyphen-preserving and non-hyphen tokenization to catch terms
+        like 'off-white', 'full-length', etc.
+        """
+        if not text:
+            return False
+        s = text.lower()
+        tokens_hyphen = [t for t in re.split(r"[^0-9a-zA-Z\-]+", s) if t]
+        tokens_basic = self._tokenize(s)
+        tokens = set(tokens_hyphen) | set(tokens_basic)
+        hits = sum(1 for t in tokens if t in DOMAIN_HINTS)
+        return hits >= min_hits
+
+    def _looks_meaningful_style(self, text: str) -> bool:
+        """Strict style check: must contain at least one fashion domain term.
+
+        This ensures consistent behavior across outfit and item modes.
+        """
+        return self._has_domain_words(text, min_hits=1)
 
 
 # Convenience factory (optional)
