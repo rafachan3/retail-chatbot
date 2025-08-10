@@ -124,18 +124,23 @@ _STOPWORDS = _NLTK_STOPWORDS - _DOMAIN_KEEP
 # (used to detect multiple items accidentally placed in one comma chunk)
 ITEM_TYPE_TOKENS = {
     # Tops
-    "tshirt", "t-shirt", "tee", "shirt", "oxford", "polo", "blouse", "top", "tank", "camisole",
-    "sweater", "jumper", "hoodie", "sweatshirt", "cardigan", "jacket", "blazer", "coat",
+    "tshirt", "t-shirt", "tee", "tees", "shirt", "shirts", "oxford", "polo", "blouse", "top", "tops", "tank", "camisole",
+    "sweater", "jumpers", "jumper", "hoodie", "sweatshirt", "cardigan", "jacket", "jackets", "blazer", "coat", "coats",
     "trench", "puffer", "parka", "gilet", "vest", "overcoat", "peacoat", "bomber", "biker", "trucker", "windbreaker", "anorak", "shacket", "overshirt",
     # Bottoms
-    "jeans", "chinos", "trousers", "pants", "shorts", "skirt", "dress", "jumpsuit", "playsuit",
-    "suit", "sweatpants", "joggers", "leggings", "tights", "cargos", "cargo", "slacks",
+    "jeans", "jean", "chinos", "trousers", "pants", "shorts", "skirt", "skirts", "dress", "dresses", "jumpsuit", "playsuit",
+    "suit", "suits", "sweatpants", "joggers", "leggings", "tights", "cargos", "cargo", "slacks", "bottoms", "bottomwear",
     # Footwear
     "sneakers", "trainers", "shoes", "boots", "chelsea", "derby", "oxford", "loafer", "loafers", "sandals",
     "heels", "flats", "mules", "clogs", "brogue", "brogues", "monkstrap", "monk-strap", "espadrille", "espadrilles", "slides", "flipflops", "flip-flops",
+    "footwear",
     # Accessories
     "bag", "backpack", "tote", "crossbody", "belt", "scarf", "beanie", "cap", "hat",
     "gloves", "socks", "tie", "bowtie", "wallet", "briefcase", "duffle", "duffel", "satchel", "watch", "sunglasses",
+    "headwear", "eyewear",
+    # Category synonyms
+    "outerwear", "underwear", "lingerie", "sleepwear", "nightwear", "swimwear", "activewear", "athleisure", "loungewear",
+    "topwear",
 }
 
 # Combined hints used to validate meaningful fashion-related inputs
@@ -437,11 +442,17 @@ class Session:
                     expect="choice",
                     choices=["yes", "no"],
                 )
-            # If we detected multiple items or couldn't recognize, ask for commas
+            if matches == 0:
+                return self._payload(
+                    [
+                        "I couldn't recognize a clothing item there. Try a name like 'blazer' or list items with commas: 'jeans, t-shirt, blazer'."
+                    ],
+                    expect="text",
+                )
+            # If multiple item tokens are present in one chunk, ask for commas
             return self._payload(
                 [
-                    "Please separate items with commas, e.g., 'jeans, t-shirt, blazer'.",
-                    "If you're looking for one item, you can just type it (e.g., 'blazer').",
+                    "It looks like multiple items are in the same part. Please separate them with commas, e.g., 'jeans, t-shirt, blazer'."
                 ],
                 expect="text",
             )
@@ -466,6 +477,21 @@ class Session:
                 [
                     "It looks like multiple items are in the same part. Please put each item in its own comma-separated entry.",
                     "Example: 'jeans, t-shirt, blazer' (not 't-shirt hat').",
+                ],
+                expect="text",
+            )
+
+        # Validate that each chunk contains a recognizable clothing item
+        invalid_chunks: List[str] = []
+        for chunk in raw_chunks:
+            if not self._has_item_type_token(chunk):
+                invalid_chunks.append(chunk)
+        if invalid_chunks:
+            bad = ", ".join(invalid_chunks)
+            return self._payload(
+                [
+                    f"I couldn't find a clothing item in: {bad}.",
+                    "Use item names like 'jeans, t-shirt, blazer'.",
                 ],
                 expect="text",
             )
@@ -583,6 +609,15 @@ class Session:
         if not user_input:
             return self._payload(["What type of item is it?"], expect="text")
 
+        # Require a recognizable item type token
+        if not self._has_item_type_token(user_input):
+            return self._payload(
+                [
+                    "Please name a clothing item (e.g., 'jacket', 'sneakers', 'jeans')."
+                ],
+                expect="text",
+            )
+
         self.data.single_item_type = user_input
         self.data.single_item_type_clean = self._normalize_text(user_input)
         self.stage = Stage.ITEM_MATCH_WARDROBE
@@ -652,6 +687,15 @@ class Session:
                 expect="text",
             )
 
+        # Mark suspicious if no fashion-related terms were detected
+        if not self._has_domain_words(user_input):
+            return self._payload(
+                [
+                    "That looks a bit vague. Please list wardrobe items with fashion terms (e.g., 'dark jeans, white oxford shirt, brown belt')."
+                ],
+                expect="text",
+            )
+
         self.data.wardrobe_items_to_match = user_input
         self.data.wardrobe_items_to_match_clean = self._normalize_text(user_input)
         self.stage = Stage.ITEM_DESC
@@ -683,7 +727,7 @@ class Session:
         if not self._has_domain_words(user_input):
             return self._payload(
                 [
-                    f"Please include fashion details for the {self.data.single_item_type} (e.g., color, material, fit like 'black leather, slim, cropped')."
+                    f"This looks suspicious. Please include fashion details for the {self.data.single_item_type} (e.g., color, material, fit like 'black leather, slim, cropped')."
                 ],
                 expect="text",
             )
@@ -711,7 +755,11 @@ class Session:
             return self._payload(["Enter a numeric height in cm."], expect="text")
         # At this point user_input is a valid numeric string
         assert isinstance(user_input, str)
-        self.data.body["height_cm"] = float(user_input)  # store as float for flexibility
+        height = float(user_input)
+        # Sensible human range check (allowing some variance)
+        if not (100.0 <= height <= 250.0):
+            return self._payload(["Enter a height between 100 and 250 cm."], expect="text")
+        self.data.body["height_cm"] = height  # store as float for flexibility
         self.stage = Stage.BODY_WEIGHT
         return self._payload(["Weight (in kg)?"], expect="text")
 
@@ -730,7 +778,10 @@ class Session:
         if not self._is_number(user_input):
             return self._payload(["Enter a numeric weight in kg."], expect="text")
         assert isinstance(user_input, str)
-        self.data.body["weight_kg"] = float(user_input)
+        weight = float(user_input)
+        if not (30.0 <= weight <= 300.0):
+            return self._payload(["Enter a weight between 30 and 300 kg."], expect="text")
+        self.data.body["weight_kg"] = weight
         self.stage = Stage.BODY_AGE
         return self._payload(["Age?"], expect="text")
 
@@ -747,7 +798,10 @@ class Session:
         """
         if not user_input or not user_input.isdigit():
             return self._payload(["Enter age as an integer."], expect="text")
-        self.data.body["age"] = int(user_input)
+        age = int(user_input)
+        if not (1 <= age <= 120):
+            return self._payload(["Enter an age between 1 and 120."], expect="text")
+        self.data.body["age"] = age
         self.stage = Stage.COMPLETE
         return self._payload(
             ["Perfect! I have all the information I need. Generating your personalized recommendations..."], 
@@ -884,6 +938,16 @@ class Session:
         return " ".join(filtered)
 
     # --- Validation helpers ---
+    def _has_item_type_token(self, text: str, min_hits: int = 1) -> bool:
+        """Return True if text contains at least `min_hits` known item type tokens."""
+        if not text:
+            return False
+        s = text.lower()
+        tokens_hyphen = [t for t in re.split(r"[^0-9a-zA-Z\-]+", s) if t]
+        tokens_basic = self._tokenize(s)
+        tokens = set(tokens_hyphen) | set(tokens_basic)
+        hits = sum(1 for t in tokens if t in ITEM_TYPE_TOKENS)
+        return hits >= min_hits
     def _has_domain_words(self, text: str, min_hits: int = 1) -> bool:
         """Return True if text contains at least `min_hits` known fashion terms.
 
