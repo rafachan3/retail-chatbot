@@ -91,6 +91,79 @@ class ChatBubble(QWidget):
         self._update_size()
         super().resizeEvent(event)
 
+class ImageRow(QWidget):
+    def __init__(self, title: str, image_paths: list[str], parent=None):
+        super().__init__(parent)
+
+        layout = QVBoxLayout()
+        layout.setSpacing(5)
+
+        # Title Label
+        title_label = QLabel(title.lower().capitalize())
+        title_label.setStyleSheet("font-size: 18px; font-weight: bold;")
+        layout.addWidget(title_label)
+
+        # Horizontal layout with arrows + scroll area
+        h_layout = QHBoxLayout()
+        h_layout.setSpacing(5)
+
+        # Left arrow button
+        self.left_btn = QPushButton("◀")
+        self.left_btn.setFixedWidth(30)
+        self.left_btn.setVisible(False)  # hidden initially
+        h_layout.addWidget(self.left_btn)
+
+        # Scroll Area for Images
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFixedHeight(220)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)  # no border
+
+        # Container for images inside scroll area
+        self.image_container = QWidget()
+        image_layout = QHBoxLayout()
+        image_layout.setSpacing(10)
+
+        for img_path in image_paths:
+            pixmap = QPixmap(img_path).scaled(150, 200, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            img_label = QLabel()
+            img_label.setPixmap(pixmap)
+            img_label.setFixedSize(150, 200)
+            img_label.setScaledContents(True)
+            image_layout.addWidget(img_label)
+
+        image_layout.addStretch()
+        self.image_container.setLayout(image_layout)
+        self.scroll_area.setWidget(self.image_container)
+
+        h_layout.addWidget(self.scroll_area)
+
+        # Right arrow button
+        self.right_btn = QPushButton("▶")
+        self.right_btn.setFixedWidth(30)
+        h_layout.addWidget(self.right_btn)
+
+        layout.addLayout(h_layout)
+        self.setLayout(layout)
+
+        # Connect scrolling logic
+        self.left_btn.clicked.connect(lambda: self.scroll(-150))
+        self.right_btn.clicked.connect(lambda: self.scroll(150))
+        self.scroll_area.horizontalScrollBar().valueChanged.connect(self.update_arrows)
+
+        self.update_arrows()
+
+    def scroll(self, delta):
+        bar = self.scroll_area.horizontalScrollBar()
+        bar.setValue(bar.value() + delta)
+
+    def update_arrows(self):
+        bar = self.scroll_area.horizontalScrollBar()
+        self.left_btn.setVisible(bar.value() > 0)
+        self.right_btn.setVisible(bar.value() < bar.maximum())
+
 class AutoHideScrollArea(QScrollArea):
     # Help type checkers understand instance attribute types
     scrollbar: QScrollBar
@@ -210,78 +283,6 @@ class EnterTextEdit(QTextEdit):
         else:
             super().keyPressEvent(event)
 
-class ImageRow(QWidget):
-    def __init__(self, title: str, image_paths: list[str], parent=None):
-        super().__init__(parent)
-
-        layout = QVBoxLayout()
-        layout.setSpacing(5)
-
-        # Title Label
-        title_label = QLabel(title.lower().capitalize())
-        title_label.setStyleSheet("font-size: 18px; font-weight: bold;")
-        layout.addWidget(title_label)
-
-        # Horizontal layout with arrows + scroll area
-        h_layout = QHBoxLayout()
-        h_layout.setSpacing(5)
-
-        # Left arrow button
-        self.left_btn = QPushButton("◀")
-        self.left_btn.setFixedWidth(30)
-        self.left_btn.setVisible(False)  # hidden initially
-        h_layout.addWidget(self.left_btn)
-
-        # Scroll Area for Images
-        self.scroll_area = QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setFixedHeight(220)
-        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)  # no border
-
-        # Container for images inside scroll area
-        self.image_container = QWidget()
-        image_layout = QHBoxLayout()
-        image_layout.setSpacing(10)
-
-        for img_path in image_paths:
-            pixmap = QPixmap(img_path).scaled(150, 200, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-            img_label = QLabel()
-            img_label.setPixmap(pixmap)
-            img_label.setFixedSize(150, 200)
-            img_label.setScaledContents(True)
-            image_layout.addWidget(img_label)
-
-        image_layout.addStretch()
-        self.image_container.setLayout(image_layout)
-        self.scroll_area.setWidget(self.image_container)
-
-        h_layout.addWidget(self.scroll_area)
-
-        # Right arrow button
-        self.right_btn = QPushButton("▶")
-        self.right_btn.setFixedWidth(30)
-        h_layout.addWidget(self.right_btn)
-
-        layout.addLayout(h_layout)
-        self.setLayout(layout)
-
-        # Connect scrolling logic
-        self.left_btn.clicked.connect(lambda: self.scroll(-150))
-        self.right_btn.clicked.connect(lambda: self.scroll(150))
-        self.scroll_area.horizontalScrollBar().valueChanged.connect(self.update_arrows)
-
-        self.update_arrows()
-
-    def scroll(self, delta):
-        bar = self.scroll_area.horizontalScrollBar()
-        bar.setValue(bar.value() + delta)
-
-    def update_arrows(self):
-        bar = self.scroll_area.horizontalScrollBar()
-        self.left_btn.setVisible(bar.value() > 0)
-        self.right_btn.setVisible(bar.value() < bar.maximum())
 
 class ChatBotUI(QWidget):
     def __init__(self):
@@ -305,7 +306,8 @@ class ChatBotUI(QWidget):
         self.handle_payload(payload)
 
     def on_text_changed(self):
-        text = self.input_field.toPlainText().strip()
+        if self.input_field is not None:
+            text = self.input_field.toPlainText().strip()
 
         # Show or hide send button
         if text:
@@ -515,8 +517,7 @@ class ChatBotUI(QWidget):
         if input_container_item is not None:
             input_container_widget = input_container_item.widget()
             if input_container_widget is not None:
-                chat_panel.removeWidget(input_container_widget)
-                input_container_widget.deleteLater()
+                input_container_widget.hide()
 
         # 3. Create new summary area + recommendations button layout
         new_area = QWidget()
@@ -659,6 +660,11 @@ class ChatBotUI(QWidget):
 
         middle_layout.addStretch(1)
 
+        # --- Wrap the middle panel in a scroll area ---
+        middle_scroll_area = QScrollArea()
+        middle_scroll_area.setWidgetResizable(True)
+        middle_scroll_area.setWidget(middle_panel)
+
         # --- Right panel (20%) ---
         right_panel = QWidget()
         right_panel.setStyleSheet("background-color: #2A2A3D;")
@@ -672,7 +678,7 @@ class ChatBotUI(QWidget):
 
         # --- Add to horizontal layout ---
         main_layout.addWidget(left_panel, 2)   # 20%
-        main_layout.addWidget(middle_panel, 6) # 60%
+        main_layout.addWidget(middle_scroll_area, 6) # 60%
         main_layout.addWidget(right_panel, 2)  # 20%
 
     def handle_payload(self, payload: dict):
