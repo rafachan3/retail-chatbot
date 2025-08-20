@@ -1,4 +1,5 @@
 import sys
+import logging
 import importlib.util as _ilu
 from pathlib import Path
 from PyQt6.QtWidgets import (
@@ -151,16 +152,21 @@ class ImageRow(QWidget):
         # Connect scrolling logic
         self.left_btn.clicked.connect(lambda: self.scroll(-150))
         self.right_btn.clicked.connect(lambda: self.scroll(150))
-        self.scroll_area.horizontalScrollBar().valueChanged.connect(self.update_arrows)
+        bar = self.scroll_area.horizontalScrollBar()
+        if bar is not None:
+            bar.valueChanged.connect(self.update_arrows)
 
         self.update_arrows()
 
     def scroll(self, delta):
         bar = self.scroll_area.horizontalScrollBar()
-        bar.setValue(bar.value() + delta)
+        if bar is not None:
+            bar.setValue(bar.value() + delta)
 
     def update_arrows(self):
         bar = self.scroll_area.horizontalScrollBar()
+        if bar is None:
+            return
         self.left_btn.setVisible(bar.value() > 0)
         self.right_btn.setVisible(bar.value() < bar.maximum())
 
@@ -512,8 +518,15 @@ class ChatBotUI(QWidget):
 
         # 2. Remove original input area
         main_layout = self.layout()
-        chat_panel = main_layout.itemAt(1).layout()
-        input_container_item = chat_panel.itemAt(1)
+        if not main_layout or main_layout.count() < 2:
+            return
+        chat_panel_item = main_layout.itemAt(1)
+        if chat_panel_item is None:
+            return
+        chat_panel = chat_panel_item.layout()
+        if chat_panel is None:
+            return
+        input_container_item = chat_panel.itemAt(1) if chat_panel.count() > 1 else None
         if input_container_item is not None:
             input_container_widget = input_container_item.widget()
             if input_container_widget is not None:
@@ -598,7 +611,37 @@ class ChatBotUI(QWidget):
         new_area_layout.addWidget(button_container)
 
         # Insert the new area widget into the chat panel layout at position 1
-        chat_panel.insertWidget(1, new_area)
+        if hasattr(chat_panel, 'insertWidget'):
+            chat_panel.insertWidget(1, new_area)  # type: ignore[attr-defined]
+
+        # Log recommendations (no UI modification)
+        try:
+            logging.info("Summary UI displayed; generating recommendations...")
+            rec_path = Path(__file__).parent / "recommendation" / "backend_recs.py"
+            spec = _ilu.spec_from_file_location("recommendation_backend", str(rec_path))
+            if spec and spec.loader:
+                mod = _ilu.module_from_spec(spec)
+                sys.modules[spec.name] = mod
+                spec.loader.exec_module(mod)
+                # Embedding-only flow (no TF-IDF fallback)
+                rec_dir = Path(__file__).parent / 'recommendation'
+                mode = data.get('mode')
+                get_embed = getattr(mod, 'get_embedding_recommender', None)
+                if not get_embed:
+                    logging.error("Embedding recommender unavailable (get_embedding_recommender missing).")
+                else:
+                    try:
+                        emb_rec = get_embed(rec_dir)
+                        if mode == 'outfit':
+                            out_struct = emb_rec.recommend_outfit_from_preferences(data, top_k=3)
+                            logging.info("[embed] Outfit recommendations: %s", out_struct)
+                        else:
+                            single = emb_rec.recommend_from_preferences(data, top_k=3)
+                            logging.info("[embed] Single-item recommendations: %s", single)
+                    except Exception as e_embed:
+                        logging.error("Embedding recommendation failed: %s", e_embed)
+        except Exception as e:
+            logging.warning("Recommendation logging failed: %s", e)
 
     def recommendation_setup(self, items):
         parent_widget = self
@@ -701,6 +744,8 @@ class ChatBotUI(QWidget):
 
 
 if __name__ == "__main__":
+    import logging
+    logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s", force=True)
     app = QApplication(sys.argv)
     chatbot = ChatBotUI()
     chatbot.showMaximized()
