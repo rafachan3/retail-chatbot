@@ -299,8 +299,8 @@ class Session:
         self.stage = Stage.MODE_SELECTION
         return self._payload(
             [
-                "Hi, I'm your shopping assistant.",
-                "Are you looking for a complete outfit or a specific item?",
+                "Hi! I'm your personal stylist.",
+                "What can I help you find today?",
             ],
             expect="choice",
             choices=["outfit", "item"],
@@ -331,14 +331,16 @@ class Session:
         if self.data.mode == "outfit":
             return self._payload(
                 [
-                    "Great! Let's find you an outfit. What is the style or mood you're looking for?",
+                    "Perfect! What style vibe are you going for?",
+                    "Examples: casual, business, minimal, streetwear, elegant"
                 ],
                 expect="text",
             )
         else:
             return self._payload(
                 [
-                    "Awesome! What is the style or mood you're looking for?",
+                    "Great choice! What style are you looking for?", 
+                    "Examples: casual, business, minimal, streetwear, elegant"
                 ],
                 expect="text",
             )
@@ -356,11 +358,11 @@ class Session:
             Dict containing confirmation message and next stage prompt.
         """
         if not user_input:
-            return self._payload(["Please describe a style or mood."], expect="text")
+            return self._payload(["Please tell me what style you want."], expect="text")
 
         # Reject numeric-only input; require at least one alphabetic character
         if not re.search(r"[A-Za-z]", user_input or ""):
-            return self._payload(["Please describe a style or mood with words (not just numbers)."], expect="text")
+            return self._payload(["Please use words to describe the style (not just numbers)."], expect="text")
 
         # Sanity check for meaningful style text
         if not self._looks_meaningful_style(user_input):
@@ -379,9 +381,9 @@ class Session:
             self.stage = Stage.OUTFIT_ITEMS
             return self._payload(
                 [
-                    f"Got it! You're looking for a {self.data.style} outfit.",
-                    "What clothing items do you want to include?",
-                    "Please separate items with commas (e.g., 'jeans, t-shirt, blazer').",
+                    f"Got it, {self.data.style} style!",
+                    "What items do you want in your outfit?",
+                    "List them separated by commas: jeans, shirt, jacket"
                 ],
                 expect="text",
             )
@@ -389,8 +391,9 @@ class Session:
             self.stage = Stage.ITEM_TYPE
             return self._payload(
                 [
-                    f"Got it! You're looking for a {self.data.style} item.",
-                    "What type of item is it? (e.g. 'jacket', 'sneakers')",
+                    f"Perfect, {self.data.style} style!",
+                    "What item are you looking for?",
+                    "Examples: t-shirt, jeans, sneakers, jacket"
                 ],
                 expect="text",
             )
@@ -410,7 +413,7 @@ class Session:
         """
         if not user_input:
             return self._payload(
-                ["List the clothing items separated by commas."], expect="text"
+                ["Tell me which clothing items you want."], expect="text"
             )
 
         # Single-item fallback: if there's no comma and it looks like one item,
@@ -421,7 +424,7 @@ class Session:
             if re.search(r"\b(and|&|plus)\b", chunk, flags=re.IGNORECASE):
                 return self._payload(
                     [
-                        "Please separate items with commas, e.g., 'jeans, t-shirt, blazer'."
+                        "Please use commas to separate items: shirt, jeans, shoes"
                     ],
                     expect="text",
                 )
@@ -511,10 +514,8 @@ class Session:
         self.stage = Stage.OUTFIT_OCCASION
         return self._payload(
             [
-                (
-                    f"Perfect! You're looking for an outfit with: {', '.join(self.data.outfit_items_list)}. "
-                    "Is it for a specific occasion or daily wear?"
-                )
+                f"Great! Items: {', '.join(self.data.outfit_items_list)}",
+                "Is this for a specific event or everyday wear?"
             ],
             expect="choice",
             choices=["specific", "daily"],
@@ -534,7 +535,7 @@ class Session:
         """
         if not user_input or user_input.lower() not in ("specific", "daily"):
             return self._payload(
-                ["Choose 'specific' or 'daily'."],
+                ["Please choose: specific or daily"],
                 expect="choice",
                 choices=["specific", "daily"],
             )
@@ -545,7 +546,7 @@ class Session:
         self.stage = Stage.OUTFIT_ITEM_DESC
         self.data.current_item = self.data.outfit_items_pending.pop(0)
         return self._payload(
-            [f"Describe the {self.data.current_item} (color, fit, etc.)."],
+            [f"Tell me about the {self.data.current_item} you want."],
             expect="text",
         )
 
@@ -607,13 +608,13 @@ class Session:
             Dict containing wardrobe matching question with yes/no choices.
         """
         if not user_input:
-            return self._payload(["What type of item is it?"], expect="text")
+            return self._payload(["What item are you looking for?"], expect="text")
 
         # Require a recognizable item type token
         if not self._has_item_type_token(user_input):
             return self._payload(
                 [
-                    "Please name a clothing item (e.g., 'jacket', 'sneakers', 'jeans')."
+                    "Please name a clothing item: t-shirt, jeans, jacket, sneakers, etc."
                 ],
                 expect="text",
             )
@@ -622,7 +623,7 @@ class Session:
         self.data.single_item_type_clean = self._normalize_text(user_input)
         self.stage = Stage.ITEM_MATCH_WARDROBE
         return self._payload(
-            ["Do you want it to match your current wardrobe? (yes/no)"],
+            [f"Do you want this {self.data.single_item_type} to match items you already own?"],
             expect="choice",
             choices=["yes", "no"],
         )
@@ -652,8 +653,8 @@ class Session:
             self.stage = Stage.ITEM_WARDROBE_ITEMS
             return self._payload(
                 [
-                    f"Which items in your wardrobe would you like to match the {self.data.single_item_type} with? "
-                    "(e.g. 'dark jeans, white shirt, brown belt')"
+                    f"What clothes do you want to match with the {self.data.single_item_type}?",
+                    "Examples: dark jeans and white shirt, black dress, blue suit"
                 ],
                 expect="text",
             )
@@ -662,7 +663,8 @@ class Session:
             self.stage = Stage.ITEM_DESC
             return self._payload(
                 [
-                    f"Describe the {self.data.single_item_type} (color, material, fit, etc.).",
+                    f"Describe your ideal {self.data.single_item_type}:",
+                    "Include colors, materials, fit, style details"
                 ],
                 expect="text",
             )
@@ -682,7 +684,7 @@ class Session:
         if not user_input:
             return self._payload(
                 [
-                    f"Please list the wardrobe items you'd like to match the {self.data.single_item_type} with."
+                    f"Tell me about the clothes you want to match with the {self.data.single_item_type}."
                 ],
                 expect="text",
             )
@@ -691,18 +693,22 @@ class Session:
         if not self._has_domain_words(user_input):
             return self._payload(
                 [
-                    "That looks a bit vague. Please list wardrobe items with fashion terms (e.g., 'dark jeans, white oxford shirt, brown belt')."
+                    "Please describe your clothes with more detail.",
+                    "Examples: dark blue jeans, white cotton shirt, black leather shoes"
                 ],
                 expect="text",
             )
 
         self.data.wardrobe_items_to_match = user_input
         self.data.wardrobe_items_to_match_clean = self._normalize_text(user_input)
-        self.stage = Stage.ITEM_DESC
+        
+        # Skip item description step and go straight to body measurements
+        # The wardrobe description will be used to define what the new item should look like
+        self.stage = Stage.BODY_HEIGHT
         return self._payload(
             [
-                f"Great! Now describe the {self.data.single_item_type} you're looking for "
-                f"that will match with: {user_input}"
+                f"Perfect! I'll find a {self.data.single_item_type} that matches: {user_input}",
+                "What's your height in cm?"
             ],
             expect="text",
         )
@@ -720,14 +726,15 @@ class Session:
         """
         if not user_input:
             return self._payload(
-                [f"Please describe the {self.data.single_item_type}."], expect="text"
+                [f"Tell me about your ideal {self.data.single_item_type}."], expect="text"
             )
 
         # Require at least one fashion-domain term
         if not self._has_domain_words(user_input):
             return self._payload(
                 [
-                    f"This looks suspicious. Please include fashion details for the {self.data.single_item_type} (e.g., color, material, fit like 'black leather, slim, cropped')."
+                    f"Please include more details about the {self.data.single_item_type}.",
+                    "Examples: black leather jacket, white cotton t-shirt, dark blue jeans"
                 ],
                 expect="text",
             )
@@ -736,7 +743,7 @@ class Session:
         self.data.descriptions[self.data.single_item_type] = user_input
         self.data.descriptions_clean[self.data.single_item_type] = self._clean_description(user_input)
         self.stage = Stage.BODY_HEIGHT
-        return self._payload(["Height (in cm)?"], expect="text")
+        return self._payload(["What's your height in cm?"], expect="text")
 
     # ---- Body measurements (common tail) --------------------------------
     def _handle_body_height(self, user_input: Optional[str]) -> Dict[str, Any]:
@@ -752,16 +759,16 @@ class Session:
             Dict containing weight collection prompt or validation error.
         """
         if not self._is_number(user_input):
-            return self._payload(["Enter a numeric height in cm."], expect="text")
+            return self._payload(["Please enter your height as a number."], expect="text")
         # At this point user_input is a valid numeric string
         assert isinstance(user_input, str)
         height = float(user_input)
         # Sensible human range check (allowing some variance)
         if not (100.0 <= height <= 250.0):
-            return self._payload(["Enter a height between 100 and 250 cm."], expect="text")
+            return self._payload(["Please enter a height between 100-250 cm."], expect="text")
         self.data.body["height_cm"] = height  # store as float for flexibility
         self.stage = Stage.BODY_WEIGHT
-        return self._payload(["Weight (in kg)?"], expect="text")
+        return self._payload(["What's your weight in kg?"], expect="text")
 
     def _handle_body_weight(self, user_input: Optional[str]) -> Dict[str, Any]:
         """Handle user input for body weight measurement.
@@ -776,14 +783,14 @@ class Session:
             Dict containing age collection prompt or validation error.
         """
         if not self._is_number(user_input):
-            return self._payload(["Enter a numeric weight in kg."], expect="text")
+            return self._payload(["Please enter your weight as a number."], expect="text")
         assert isinstance(user_input, str)
         weight = float(user_input)
         if not (30.0 <= weight <= 300.0):
-            return self._payload(["Enter a weight between 30 and 300 kg."], expect="text")
+            return self._payload(["Please enter a weight between 30-300 kg."], expect="text")
         self.data.body["weight_kg"] = weight
         self.stage = Stage.BODY_AGE
-        return self._payload(["Age?"], expect="text")
+        return self._payload(["How old are you?"], expect="text")
 
     def _handle_body_age(self, user_input: Optional[str]) -> Dict[str, Any]:
         """Handle user input for age and complete the preference collection.
@@ -797,14 +804,14 @@ class Session:
             Dict containing completion message with done=True flag.
         """
         if not user_input or not user_input.isdigit():
-            return self._payload(["Enter age as an integer."], expect="text")
+            return self._payload(["Please enter your age as a number."], expect="text")
         age = int(user_input)
         if not (1 <= age <= 120):
-            return self._payload(["Enter an age between 1 and 120."], expect="text")
+            return self._payload(["Please enter an age between 1-120."], expect="text")
         self.data.body["age"] = age
         self.stage = Stage.COMPLETE
         return self._payload(
-            ["Perfect! I have all the information I need. Generating your personalized recommendations..."], 
+            ["Perfect! I have everything I need to find your ideal recommendations."], 
             done=True, 
             show_summary=True
         )
