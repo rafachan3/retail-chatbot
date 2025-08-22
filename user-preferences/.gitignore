@@ -1,3 +1,6 @@
 session.log
 __pycache__/
 *.pyc
+
+# Mac-specific
+.DS_Store
