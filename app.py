@@ -4,14 +4,19 @@ import importlib.util as _ilu
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout,
-    QLineEdit, QPushButton, QLabel, QScrollArea,
+    QPushButton, QLabel, QScrollArea,
     QFrame, QSizePolicy, QTextBrowser, QGridLayout, QTextEdit, QScrollBar
 )
-from PyQt6.QtGui import QPixmap, QTextDocument, QFontMetrics, QTextOption, QKeyEvent, QAbstractTextDocumentLayout, QFont
+from PyQt6.QtGui import QPixmap, QTextDocument, QFontMetrics, QTextOption, QAbstractTextDocumentLayout, QFont
 from PyQt6.QtCore import Qt, QTimer, QEvent, pyqtSignal
 from typing import cast, Optional
 
 class ChatBubble(QWidget):
+    """A custom widget for displaying chat messages in bubble format.
+    
+    Creates a styled chat bubble with appropriate alignment and colors
+    for either user or bot messages.
+    """
     """A chat bubble that expands vertically to fit multi-line text.
 
     Uses QTextBrowser to reliably compute document height for the given width,
@@ -93,15 +98,36 @@ class ChatBubble(QWidget):
         super().resizeEvent(event)
 
 class ImageRow(QWidget):
-    def __init__(self, title: str, image_paths: list[str], parent=None):
+    """A widget for displaying a horizontal row of product images with titles.
+    
+    Shows product recommendations in a scrollable horizontal layout with
+    product images, names, and details.
+    """
+    def __init__(self, title: str, image_data: list[dict], parent=None):
+        """
+        Args:
+            title: The title for the row
+            image_data: List of dicts with 'image_path' and 'prod_name' keys
+        """
         super().__init__(parent)
+        
+        # Debug logging
+        logging.info(f"ImageRow created with title: '{title}' and {len(image_data)} items")
 
         layout = QVBoxLayout()
         layout.setSpacing(5)
 
         # Title Label
-        title_label = QLabel(title.lower().capitalize())
-        title_label.setStyleSheet("font-size: 18px; font-weight: bold;")
+        display_title = title.lower().capitalize() if title else "Items"
+        title_label = QLabel(display_title)
+        title_label.setStyleSheet("""
+            font-size: 18px; 
+            font-weight: bold; 
+            color: #2A2A3D; 
+            padding: 10px 0px 5px 0px;
+            margin-bottom: 5px;
+        """)
+        title_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
         layout.addWidget(title_label)
 
         # Horizontal layout with arrows + scroll area
@@ -117,7 +143,7 @@ class ImageRow(QWidget):
         # Scroll Area for Images
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setFixedHeight(220)
+        self.scroll_area.setFixedHeight(295)  # Increased to accommodate product names and style
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)  # no border
@@ -127,13 +153,63 @@ class ImageRow(QWidget):
         image_layout = QHBoxLayout()
         image_layout.setSpacing(10)
 
-        for img_path in image_paths:
+        for item in image_data:
+            # Handle both old format (strings) and new format (dicts)
+            if isinstance(item, str):
+                img_path = item
+                prod_name = "Product"  # Default name for backward compatibility
+                style = ""  # Default empty style
+            else:
+                img_path = item.get('image_path', '')
+                prod_name = item.get('prod_name', 'Unknown Product')
+                style = item.get('style', '')
+            
+            # Create container for image + text
+            item_container = QWidget()
+            item_layout = QVBoxLayout(item_container)
+            item_layout.setContentsMargins(0, 0, 0, 0)
+            item_layout.setSpacing(5)
+            
+            # Image
             pixmap = QPixmap(img_path).scaled(150, 200, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             img_label = QLabel()
             img_label.setPixmap(pixmap)
             img_label.setFixedSize(150, 200)
             img_label.setScaledContents(True)
-            image_layout.addWidget(img_label)
+            item_layout.addWidget(img_label)
+            
+            # Product name label
+            name_label = QLabel(prod_name)
+            name_label.setStyleSheet("""
+                font-size: 12px;
+                font-weight: bold;
+                color: #2A2A3D;
+                background-color: white;
+                padding: 2px;
+            """)
+            name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            name_label.setWordWrap(True)
+            name_label.setFixedWidth(150)
+            name_label.setMaximumHeight(25)
+            item_layout.addWidget(name_label)
+            
+            # Style label (if style information is available)
+            if style:
+                style_label = QLabel(f"Style: {style}")
+                style_label.setStyleSheet("""
+                    font-size: 10px;
+                    color: #666666;
+                    background-color: #f0f0f0;
+                    padding: 2px;
+                    border-radius: 3px;
+                """)
+                style_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                style_label.setWordWrap(True)
+                style_label.setFixedWidth(150)
+                style_label.setMaximumHeight(20)
+                item_layout.addWidget(style_label)
+            
+            image_layout.addWidget(item_container)
 
         image_layout.addStretch()
         self.image_container.setLayout(image_layout)
@@ -171,6 +247,11 @@ class ImageRow(QWidget):
         self.right_btn.setVisible(bar.value() < bar.maximum())
 
 class AutoHideScrollArea(QScrollArea):
+    """A scroll area that automatically hides its scrollbars when not needed.
+    
+    Provides a cleaner interface by only showing scrollbars when content
+    exceeds the visible area.
+    """
     # Help type checkers understand instance attribute types
     scrollbar: QScrollBar
 
@@ -281,6 +362,11 @@ class AutoHideScrollArea(QScrollArea):
         )
 
 class EnterTextEdit(QTextEdit):
+    """A custom text edit widget that emits a signal when Enter is pressed.
+    
+    Allows for easy handling of Enter key presses to send messages,
+    while supporting Shift+Enter for new lines.
+    """
     enterPressed = pyqtSignal()
 
     def keyPressEvent(self, event):
@@ -291,7 +377,17 @@ class EnterTextEdit(QTextEdit):
 
 
 class ChatBotUI(QWidget):
+    """Main application window for the retail chatbot.
+    
+    Provides a conversational interface for users to specify their clothing
+    preferences and receive personalized recommendations. Features include:
+    - Interactive conversation flow for collecting preferences
+    - Size recommendations based on body measurements
+    - Product recommendations with images organized by category
+    - Responsive UI that adapts to different conversation stages
+    """
     def __init__(self):
+        """Initialize the chatbot UI and load the conversation backend."""
         super().__init__()
         self.setWindowTitle("Stylist ChatBot")
         # Load backend session from user-preferences/backend-user-preferences.py
@@ -351,6 +447,7 @@ class ChatBotUI(QWidget):
         super().resizeEvent(event)
 
     def setup_ui(self):
+        """Setup the main user interface layout and components."""
         # === Main horizontal layout (split screen) ===
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -514,7 +611,96 @@ class ChatBotUI(QWidget):
         self.input_field.setFixedHeight(60)  # Reset height after sending
         self.input_field.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
     
+    def group_by_requested_items(self, user_requested_items, recommendations):
+        """Group recommendations by their requested item type field.
+        
+        This is a simple and reliable approach that uses the requested_item_type
+        field that was added to each recommendation during generation.
+        
+        Args:
+            user_requested_items: List of item types the user requested
+            recommendations: List of recommendation objects with requested_item_type field
+            
+        Returns:
+            Dictionary mapping user requested items to their recommendations
+        """
+        from collections import defaultdict
+        
+        user_item_groups = defaultdict(list)
+        
+        # First, group recommendations by their requested_item_type field
+        for rec in recommendations:
+            requested_item = rec.get("requested_item_type", "")
+            if requested_item:
+                user_item_groups[requested_item].append(rec)
+        
+        # Convert to regular dict and ensure all user requested items have entries
+        result = {}
+        for user_item in user_requested_items:
+            result[user_item] = user_item_groups.get(user_item, [])
+        
+        # Add any items that weren't in user_requested_items but have recommendations
+        for requested_item, recs in user_item_groups.items():
+            if requested_item not in result:
+                result[requested_item] = recs
+        
+        logging.info(f"Grouped recommendations: {[(k, len(v)) for k, v in result.items()]}")
+        return result
+    
+    def convert_recommendations_to_image_data(self, recommendations, rec_dir):
+        """Convert recommendation objects to image data format for UI display.
+        
+        Args:
+            recommendations: List of recommendation objects from the backend
+            rec_dir: Directory containing the recommendation images
+            
+        Returns:
+            List of image data dictionaries with paths and product info
+        """
+        from pathlib import Path
+        
+        image_data = []
+        images_dir = rec_dir / "images"
+        placeholder_path = rec_dir.parent / "0005720_coming-soon-page_550.jpeg"
+        
+        for rec in recommendations:
+            article_id_raw = rec.get("article_id", "")
+            if not article_id_raw:
+                continue
+            
+            # Convert to string and handle zero-padding for 10-digit article IDs
+            article_id_str = str(article_id_raw)
+            if len(article_id_str) == 9:  # Missing leading zero
+                article_id_str = "0" + article_id_str
+                
+            # Look for image file with article_id name (try different extensions)
+            image_path = None
+            for ext in [".jpg", ".jpeg", ".png", ".JPG", ".JPEG", ".PNG"]:
+                potential_path = images_dir / f"{article_id_str}{ext}"
+                if potential_path.exists():
+                    image_path = str(potential_path)
+                    break
+            
+            # Use placeholder if no image found
+            if not image_path and placeholder_path.exists():
+                image_path = str(placeholder_path)
+            
+            if image_path:
+                image_data.append({
+                    "image_path": image_path,
+                    "product_type_name": rec.get("product_type_name", "Unknown"),
+                    "style": rec.get("style", "Unknown"),
+                    "article_id": article_id_str,
+                    "prod_name": rec.get("prod_name", "Unknown Product")
+                })
+        
+        return image_data
+    
     def setup_summary_ui(self, data):
+        """Setup the summary UI showing user preferences and size recommendations."""
+        
+        # Store user data for later use
+        self.current_user_data = data
 
         # 2. Remove original input area
         main_layout = self.layout()
@@ -574,6 +760,41 @@ class ChatBotUI(QWidget):
             self.summary_text_widget.setAlignment(Qt.AlignmentFlag.AlignLeft)
             summary_layout.addWidget(self.summary_text_widget)
 
+        # Size recommendation
+        try:
+            # Import the size recommendation function
+            rec_path = Path(__file__).parent / "recommendation" / "backend_recs.py"
+            spec = _ilu.spec_from_file_location("recommendation_backend", str(rec_path))
+            if spec and spec.loader:
+                mod = _ilu.module_from_spec(spec)
+                sys.modules[spec.name] = mod
+                spec.loader.exec_module(mod)
+                
+                get_size = getattr(mod, 'get_recommended_size', None)
+                if get_size:
+                    rec_dir = Path(__file__).parent / 'recommendation'
+                    recommended_size = get_size(data, rec_dir)
+                    
+                    if recommended_size:
+                        size_text = f"📏 The recommended size for your clothing pieces is: {recommended_size}"
+                        self.size_widget = QLabel(size_text)
+                        self.size_widget.setStyleSheet("""
+                            QLabel {
+                                font-size: 16px;
+                                font-weight: bold;
+                                color: #4CAF50;
+                                background-color: #1a1a2e;
+                                padding: 12px;
+                                border-radius: 8px;
+                                border: 2px solid #4CAF50;
+                            }
+                        """)
+                        self.size_widget.setWordWrap(True)
+                        self.size_widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                        summary_layout.addWidget(self.size_widget)
+        except Exception as e:
+            logging.warning(f"Failed to get size recommendation: {e}")
+
         summary_layout.addStretch()
 
 
@@ -605,7 +826,7 @@ class ChatBotUI(QWidget):
         if not items:
             items.append(data.get("single_item_type", ""))
 
-        self.recommendations_btn.clicked.connect(lambda: self.recommendation_setup(items))
+        self.recommendations_btn.clicked.connect(lambda: self.recommendation_setup(data))
 
         new_area_layout.addWidget(self.summary_container_widget)
         new_area_layout.addWidget(button_container)
@@ -614,7 +835,8 @@ class ChatBotUI(QWidget):
         if hasattr(chat_panel, 'insertWidget'):
             chat_panel.insertWidget(1, new_area)  # type: ignore[attr-defined]
 
-        # Log recommendations (no UI modification)
+        # Log recommendations and store them for UI use
+        self.current_recommendations = []
         try:
             logging.info("Summary UI displayed; generating recommendations...")
             rec_path = Path(__file__).parent / "recommendation" / "backend_recs.py"
@@ -623,7 +845,7 @@ class ChatBotUI(QWidget):
                 mod = _ilu.module_from_spec(spec)
                 sys.modules[spec.name] = mod
                 spec.loader.exec_module(mod)
-                # Embedding-only flow (no TF-IDF fallback)
+                # Embedding-only flow
                 rec_dir = Path(__file__).parent / 'recommendation'
                 mode = data.get('mode')
                 get_embed = getattr(mod, 'get_embedding_recommender', None)
@@ -633,17 +855,32 @@ class ChatBotUI(QWidget):
                     try:
                         emb_rec = get_embed(rec_dir)
                         if mode == 'outfit':
-                            out_struct = emb_rec.recommend_outfit_from_preferences(data, top_k=3)
-                            logging.info("[embed] Outfit recommendations: %s", out_struct)
+                            recommendations = emb_rec.recommend_outfit_from_preferences(data, top_k=3)
+                            logging.info("[embed] Outfit recommendations: %s", recommendations)
                         else:
-                            single = emb_rec.recommend_from_preferences(data, top_k=3)
-                            logging.info("[embed] Single-item recommendations: %s", single)
+                            recommendations = emb_rec.recommend_from_preferences(data, top_k=3)
+                            logging.info("[embed] Single-item recommendations: %s", recommendations)
+                        
+                        # Store recommendations for use in recommendation_setup
+                        self.current_recommendations = recommendations
                     except Exception as e_embed:
                         logging.error("Embedding recommendation failed: %s", e_embed)
         except Exception as e:
             logging.warning("Recommendation logging failed: %s", e)
 
-    def recommendation_setup(self, items):
+    def recommendation_setup(self, data=None):
+        """Setup the recommendation display UI showing categorized product images.
+        
+        Transitions from the conversation interface to the recommendation interface,
+        showing products grouped by the user's requested item types.
+        
+        Args:
+            data: User preference data collected during conversation
+        """
+        if data is None:
+            # Fallback to stored data if available
+            data = getattr(self, 'current_user_data', {})
+        
         parent_widget = self
         old_layout = parent_widget.layout()
 
@@ -696,9 +933,65 @@ class ChatBotUI(QWidget):
         title_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
         middle_layout.addWidget(title_label)
 
-        for item in items:
-            image_path = ['/Users/hugoguideau/retail-chatbot/0005720_coming-soon-page_550.jpeg']*10
-            item_row = ImageRow(item, image_path)
+        # Get real recommendation images
+        try:
+            # Import the extract function
+            rec_path = Path(__file__).parent / "recommendation" / "backend_recs.py"
+            spec = _ilu.spec_from_file_location("recommendation_backend", str(rec_path))
+            if spec and spec.loader:
+                mod = _ilu.module_from_spec(spec)
+                sys.modules[spec.name] = mod
+                spec.loader.exec_module(mod)
+                
+                extract_images = getattr(mod, 'extract_recommendation_images', None)
+                if extract_images and hasattr(self, 'current_recommendations'):
+                    rec_dir = Path(__file__).parent / 'recommendation'
+                    image_data = extract_images(self.current_recommendations, rec_dir)
+                    
+                    # Get user's requested items to use as category titles
+                    user_requested_items = []
+                    if data.get("mode") == "outfit":
+                        user_requested_items = data.get("outfit_items", [])
+                    else:
+                        single_item = data.get("single_item_type", "")
+                        if single_item:
+                            user_requested_items = [single_item]
+                    
+                    # Group recommendations by user's requested item types - SIMPLIFIED
+                    user_item_groups = self.group_by_requested_items(user_requested_items, self.current_recommendations)
+                    
+                    # Debug logging
+                    logging.info(f"User requested items: {user_requested_items}")
+                    for user_item, items in user_item_groups.items():
+                        logging.info(f"Group '{user_item}': {len(items)} items")
+                        for item in items[:3]:  # Log first 3 items
+                            logging.info(f"  - {item.get('prod_name', 'Unknown')} ({item.get('product_type_name', 'Unknown type')})")
+                    
+                    # Create image rows for each user-requested item category
+                    for user_item, items in user_item_groups.items():
+                        if items:  # Only create row if there are items
+                            logging.info(f"Creating ImageRow for '{user_item}' with {len(items)} items")
+                            # Ensure title is properly formatted
+                            display_title = str(user_item).strip()
+                            if not display_title:
+                                display_title = "Items"
+                            
+                            # Convert recommendation objects to image data format
+                            image_data_for_row = self.convert_recommendations_to_image_data(items, rec_dir)
+                            item_row = ImageRow(display_title, image_data_for_row)
+                            middle_layout.addWidget(item_row)
+            else:
+                # Fallback to placeholder image if extraction fails
+                placeholder_path = str(Path(__file__).parent / '0005720_coming-soon-page_550.jpeg')
+                placeholder_data = [{'image_path': placeholder_path, 'prod_name': 'Coming Soon'}] * 5
+                item_row = ImageRow("Recommendations", placeholder_data)
+                middle_layout.addWidget(item_row)
+        except Exception as e:
+            logging.warning(f"Failed to load recommendation images: {e}")
+            # Fallback to placeholder image
+            placeholder_path = str(Path(__file__).parent / '0005720_coming-soon-page_550.jpeg')
+            placeholder_data = [{'image_path': placeholder_path, 'prod_name': 'Coming Soon'}] * 5
+            item_row = ImageRow("Recommendations", placeholder_data)
             middle_layout.addWidget(item_row)
 
         middle_layout.addStretch(1)

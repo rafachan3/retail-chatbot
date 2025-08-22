@@ -1,3 +1,12 @@
+"""Main entry point for the Retail Chatbot application.
+
+This module configures the PyQt6 environment and launches the chatbot GUI.
+It handles Qt plugin path configuration for cross-platform compatibility
+and sets up logging for the application.
+
+Usage:
+    python main.py
+"""
 import os
 import sys
 from pathlib import Path
