@@ -3,14 +3,14 @@
 A conversational retail chatbot that collects user preferences and provides personalized clothing recommendations using embedding-based similarity matching.
 
 ## Instructions:
-** To use the chatbot follow the steps: **
+**To use the chatbot follow the steps:**
 1. Clone the repository
 2. Create a virtual environment (preferably using a stable python version e.g. 3.10-3.11) and install the required packages from requirements-clean.txt
 3. Download the images folder from Kaggle: https://www.kaggle.com/competitions/h-and-m-personalized-fashion-recommendations/data?select=images (The folder is big ~ 30GB so can't be pushed in the repo)
 4. Place the folder under retail-chatbot/recommendation
 5. Run the images-folder.py script to remove all of the subfolders from the images folder
-6. Run the main and use the chatbot
-** If you choose to not download the images folder then a placeholder image will be rendered for the recommended items instead. **
+6. Run the main and use the chatbot<br>
+**If you choose to not download the images folder then a placeholder image will be rendered for the recommended items instead.**
 
 ## Phase 1: User Preference Collection
 
